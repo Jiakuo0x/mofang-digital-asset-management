@@ -1,0 +1,75 @@
+name: mofang-dam
+
+services:
+  mofang-postgres:
+    image: postgres:17-alpine@sha256:18cfe3ef5e6815560c98237d6216d1e5119702fb0f3894c8785dd58b8bbe5d73
+    container_name: mofang-postgres
+    restart: unless-stopped
+    environment:
+      POSTGRES_DB: ${POSTGRES_DB:-mofang}
+      POSTGRES_USER: ${POSTGRES_USER:-mofang}
+      POSTGRES_PASSWORD: ${POSTGRES_PASSWORD:-change-this-postgres-password}
+    ports:
+      - "${POSTGRES_PORT:-5432}:5432"
+    volumes:
+      - mofang-postgres-data:/var/lib/postgresql/data
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U $${POSTGRES_USER} -d $${POSTGRES_DB}"]
+      interval: 5s
+      timeout: 5s
+      retries: 20
+      start_period: 10s
+
+  mofang-minio:
+    image: minio/minio@sha256:14cea493d9a34af32f524e538b8346cf79f3321eff8e708c1e2960462bd8936e
+    container_name: mofang-minio
+    restart: unless-stopped
+    command: server /data --console-address ":9001"
+    environment:
+      MINIO_ROOT_USER: ${MINIO_ACCESS_KEY:-mofangadmin}
+      MINIO_ROOT_PASSWORD: ${MINIO_SECRET_KEY:-change-this-minio-secret}
+    ports:
+      - "${MINIO_API_PORT:-9000}:9000"
+      - "${MINIO_CONSOLE_PORT:-9001}:9001"
+    volumes:
+      - mofang-minio-data:/data
+    healthcheck:
+      test: ["CMD", "mc", "ready", "local"]
+      interval: 5s
+      timeout: 5s
+      retries: 20
+      start_period: 10s
+
+  mofang-api:
+    build:
+      context: .
+      dockerfile: src/Mofang.Api/Dockerfile
+    container_name: mofang-api
+    restart: unless-stopped
+    environment:
+      ASPNETCORE_ENVIRONMENT: Production
+      ConnectionStrings__Mofang: Host=mofang-postgres;Port=5432;Database=${POSTGRES_DB:-mofang};Username=${POSTGRES_USER:-mofang};Password=${POSTGRES_PASSWORD:-change-this-postgres-password}
+      Minio__Endpoint: ${MINIO_SERVICE_HOST:-mofang-minio}
+      Minio__Port: ${MINIO_SERVICE_PORT:-9000}
+      Minio__PublicEndpoint: ${MINIO_PUBLIC_HOST:-localhost}
+      Minio__PublicPort: ${MINIO_API_PORT:-9000}
+      Minio__AccessKey: ${MINIO_ACCESS_KEY:-mofangadmin}
+      Minio__SecretKey: ${MINIO_SECRET_KEY:-change-this-minio-secret}
+      Minio__UseSSL: "${MINIO_USE_SSL:-false}"
+      Minio__BucketName: ${MINIO_ASSET_BUCKET:-mofang-assets}
+      Minio__ThumbnailBucketName: ${MINIO_THUMBNAIL_BUCKET:-mofang-thumbnails}
+      DataProtection__KeysPath: /app/data-protection-keys
+    ports:
+      - "${MOFANG_API_PORT:-5080}:8080"
+    volumes:
+      - mofang-api-logs:/app/logs
+      - mofang-data-protection-keys:/app/data-protection-keys
+    depends_on:
+      mofang-postgres:
+        condition: service_healthy
+
+volumes:
+  mofang-postgres-data:
+  mofang-minio-data:
+  mofang-api-logs:
+  mofang-data-protection-keys:

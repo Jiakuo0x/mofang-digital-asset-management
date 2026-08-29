@@ -1,0 +1,13 @@
+.env
+.tools/
+**/bin/
+**/obj/
+**/node_modules/
+**/dist/
+**/dist-electron/
+**/.qa/
+*.user
+*.suo
+*.log
+.DS_Store
+Thumbs.db

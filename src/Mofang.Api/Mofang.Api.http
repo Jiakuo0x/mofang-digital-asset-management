@@ -1,0 +1,14 @@
+@Mofang.Api_HostAddress = http://localhost:5080
+
+GET {{Mofang.Api_HostAddress}}/api/health
+Accept: application/json
+
+###
+
+GET {{Mofang.Api_HostAddress}}/api/folders
+Accept: application/json
+
+###
+
+GET {{Mofang.Api_HostAddress}}/api/assets?pageSize=100
+Accept: application/json

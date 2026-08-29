@@ -1,0 +1,12 @@
+<Solution>
+  <Folder Name="/src/">
+    <Project Path="src/Mofang.Api/Mofang.Api.csproj" />
+    <Project Path="src/Mofang.Application/Mofang.Application.csproj" />
+    <Project Path="src/Mofang.Contracts/Mofang.Contracts.csproj" />
+    <Project Path="src/Mofang.Domain/Mofang.Domain.csproj" />
+    <Project Path="src/Mofang.Infrastructure/Mofang.Infrastructure.csproj" />
+  </Folder>
+  <Folder Name="/tests/">
+    <Project Path="tests/Mofang.UnitTests/Mofang.UnitTests.csproj" />
+  </Folder>
+</Solution>
