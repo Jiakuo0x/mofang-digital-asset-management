@@ -38,6 +38,11 @@ try {
   assert.equal(await page.locator('vite-error-overlay').count(), 0)
   await page.waitForFunction(() => [...document.images].every(image => image.complete && image.naturalWidth > 0))
 
+  // A short desktop window must keep the form scrollable above the footer.
+  await application.evaluate(({ BrowserWindow }) => {
+    BrowserWindow.getAllWindows()[0].setContentSize(960, 640)
+  })
+
   // This also verifies that file:// renderer requests reach the configured API.
   await page.route('http://127.0.0.1:5080/api/info', route => route.fulfill({
     json: { name: 'Mofang API', version },

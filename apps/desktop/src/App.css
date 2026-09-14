@@ -43,7 +43,7 @@ svg { width: 18px; height: 18px; stroke-width: 1.65; flex: 0 0 auto; }
 .connection-back { position: absolute; top: 80px; left: 14px; z-index: 2; height: 34px; padding: 0 10px; display: flex; align-items: center; gap: 7px; border-radius: 6px; color: var(--text-2); font-size: 12px; -webkit-app-region: no-drag; }
 .connection-back:hover { color: var(--text); background: var(--surface); }
 .connection-back svg { width: 15px; }
-.connection-stage { min-height: 0; display: grid; grid-template-columns: 1fr 580px 1fr; align-items: center; gap: 58px; padding: 28px 6vw 0; }
+.connection-stage { min-height: 0; display: grid; grid-template-columns: 1fr 580px 1fr; align-items: safe center; gap: 58px; padding: 28px 6vw; overflow: auto; }
 .connection-branding { align-self: stretch; position: relative; padding-top: 58px; }
 .cube-field { position: absolute; inset: 130px 0 0 -8vw; opacity: .12; overflow: hidden; }
 .cube-field span { position: absolute; width: 110px; height: 110px; border: 1px solid #6f7985; transform: rotate(30deg) skewY(-30deg) scaleY(.86); }
