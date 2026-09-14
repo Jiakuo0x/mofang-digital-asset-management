@@ -10,10 +10,10 @@ files:
   - '!node_modules/**/*'
 asar: true
 npmRebuild: false
-extraFiles:
-  - from: packaging/使用说明.txt
-    to: 使用说明.txt
 win:
+  extraFiles:
+    - from: packaging/使用说明.txt
+      to: 使用说明.txt
   target:
     - target: zip
       arch: x64
@@ -21,6 +21,9 @@ win:
   icon: public/brand/mofang-cube.png
   artifactName: Mofang-${version}-windows-${arch}.${ext}
 mac:
+  extraResources:
+    - from: packaging/使用说明.txt
+      to: 使用说明.txt
   target:
     - target: zip
       arch: universal
