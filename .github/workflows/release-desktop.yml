@@ -106,10 +106,10 @@ jobs:
           test -f "Mofang-${version}-macos-universal.zip"
           sha256sum Mofang-*.zip > SHA256SUMS.txt
           sha256sum --check SHA256SUMS.txt
-          cp ../apps/desktop/packaging/使用说明.txt ./使用说明.txt
+          cp ../apps/desktop/packaging/使用说明.txt ./README.txt
           # Build and test both platforms before exposing any download.
           # An existing release is never overwritten by a rerun.
-          gh release create "$RELEASE_TAG" Mofang-*.zip SHA256SUMS.txt 使用说明.txt \
+          gh release create "$RELEASE_TAG" Mofang-*.zip SHA256SUMS.txt README.txt \
             --verify-tag --draft --title "魔方数字资产管理 ${RELEASE_TAG} · 免安装版" \
             --notes-file ../docs/releases/desktop-zip.md
           gh release edit "$RELEASE_TAG" --draft=false --latest
