@@ -67,8 +67,8 @@ jobs:
           ditto -x -k release/Mofang-*-macos-universal.zip "$destination"
           app="$destination/魔方数字资产管理.app"
           executable="$app/Contents/MacOS/魔方数字资产管理"
-          lipo -verify_arch x86_64 arm64 "$executable"
-          lipo -verify_arch x86_64 arm64 "$app/Contents/Frameworks/Electron Framework.framework/Versions/A/Electron Framework"
+          lipo "$executable" -verify_arch x86_64 arm64
+          lipo "$app/Contents/Frameworks/Electron Framework.framework/Versions/A/Electron Framework" -verify_arch x86_64 arm64
           codesign --verify --deep --strict --verbose=2 "$app"
           npm run test:packaged -- "$executable"
       - uses: actions/upload-artifact@v4
