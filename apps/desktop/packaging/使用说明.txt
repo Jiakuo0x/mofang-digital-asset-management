@@ -1,0 +1,31 @@
+魔方数字资产管理 · 免安装桌面客户端
+
+Windows（x64）
+1. 将 ZIP 完整解压到一个文件夹。
+2. 双击 Mofang.exe 启动。请保留文件夹内的其他文件，不要只复制 EXE。
+
+macOS（通用版，兼容 Intel 和 Apple 芯片）
+1. 双击 ZIP 解压。
+2. 双击“魔方数字资产管理.app”启动，也可拖入“应用程序”文件夹。
+3. 当前版本使用临时签名，尚未经过 Apple 公证。若 macOS 拦截，请在
+   “系统设置 → 隐私与安全性”中对本应用选择“仍要打开”，然后确认。
+   不需要关闭系统安全保护。
+
+首次连接
+填写资产库名称、已部署的 API 服务器地址与端口（默认 5080），测试连接后保存。
+首次使用由管理员创建主账号；其他用户使用管理员分配的账户登录。
+客户端不需要安装 Node.js、.NET SDK 或 Docker。
+ZIP 仅包含桌面客户端；API、PostgreSQL 和 MinIO 需由管理员单独部署。
+部署文档：https://github.com/Jiakuo0x/mofang-digital-asset-management#readme
+
+设置与升级
+连接配置和登录令牌保存在当前操作系统用户的应用数据目录，不在 ZIP 文件夹内。
+Windows：%APPDATA%\mofang-desktop
+macOS：~/Library/Application Support/mofang-desktop
+升级前退出应用，再将新版解压到新文件夹。解压目录不包含服务器资产数据。
+
+文件校验
+发布页提供 SHA256SUMS.txt。
+Windows PowerShell：Get-FileHash .\Mofang-*.zip -Algorithm SHA256
+macOS 终端：shasum -a 256 Mofang-*.zip
+将输出的校验值与 SHA256SUMS.txt 中对应文件的值比较。

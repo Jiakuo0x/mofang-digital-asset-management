@@ -1,0 +1,34 @@
+appId: com.mofang.dam
+productName: 魔方数字资产管理
+directories:
+  output: release
+  buildResources: packaging
+files:
+  - dist/**/*
+  - dist-electron/**/*
+  - package.json
+  - '!node_modules/**/*'
+asar: true
+npmRebuild: false
+extraFiles:
+  - from: packaging/使用说明.txt
+    to: 使用说明.txt
+win:
+  target:
+    - target: zip
+      arch: x64
+  executableName: Mofang
+  icon: public/brand/mofang-cube.png
+  artifactName: Mofang-${version}-windows-${arch}.${ext}
+mac:
+  target:
+    - target: zip
+      arch: universal
+  artifactName: Mofang-${version}-macos-${arch}.${ext}
+  category: public.app-category.productivity
+  icon: public/brand/mofang-cube.png
+  identity: '-'
+  hardenedRuntime: true
+  entitlements: packaging/entitlements.mac.plist
+  entitlementsInherit: packaging/entitlements.mac.plist
+  notarize: false
