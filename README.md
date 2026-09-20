@@ -1,6 +1,6 @@
 # 魔方数字资产管理
 
-面向影视制作素材的本地或局域网数字资产管理。系统由 ASP.NET Core 10 API、PostgreSQL 17、MinIO 与 Electron + React 19 桌面端组成，当前版本为 `1.1.1`，支持账户登录、目录级权限、文件夹、批量上传、检索筛选、预览、下载、移动、复制、重命名、回收站、恢复、彻底删除和详细操作日志。
+面向影视制作素材的本地或局域网数字资产管理。系统由 ASP.NET Core 10 API、PostgreSQL 17、MinIO 与 Electron + React 19 桌面端组成，当前版本为 `1.1.2`，支持账户登录、目录级权限、文件夹、批量上传、检索筛选、预览、下载、移动、复制、重命名、回收站、恢复、彻底删除和详细操作日志。
 
 ## 快速启动
 
@@ -124,7 +124,7 @@ python tests/generate-smoke-assets.py
 
 在 `apps/desktop` 目录执行 `npm ci` 后，Windows 上运行 `npm run pack:win`，macOS 上运行 `npm run pack:mac`。产物写入 `apps/desktop/release/`。macOS 通用包需要在 macOS 上合并双架构并签名。
 
-推送与 `apps/desktop/package.json` 版本一致的 Git 标签（如 `v1.1.1`），会触发 `.github/workflows/release-desktop.yml`。工作流在 Windows 和 macOS 构建机上分别构建、解压并执行启动烟测，全部通过后发布两个 ZIP、使用说明和 `SHA256SUMS.txt`。手动运行工作流只生成 Actions 构建产物，不创建 Release。已有 Release 不会被重新运行覆盖。
+推送与 `apps/desktop/package.json` 版本一致的 Git 标签（如 `v1.1.2`），会触发 `.github/workflows/release-desktop.yml`。工作流在 Windows 和 macOS 构建机上分别构建、解压并执行启动烟测，全部通过后发布两个 ZIP、使用说明和 `SHA256SUMS.txt`。手动运行工作流只生成 Actions 构建产物，不创建 Release。已有 Release 不会被重新运行覆盖。
 
 主要项目：
 

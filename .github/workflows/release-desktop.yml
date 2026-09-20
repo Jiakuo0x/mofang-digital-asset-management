@@ -48,6 +48,7 @@ jobs:
           NODE
       - run: npm ci
       - run: npm run lint
+      - run: npm run test:permissions
       - run: npm run ${{ matrix.command }}
       - name: Extract and verify Windows ZIP
         if: runner.os == 'Windows'
