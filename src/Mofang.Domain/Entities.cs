@@ -6,6 +6,12 @@ public enum EntityStatus
     Deleted = 1
 }
 
+public sealed class LibraryIdentity
+{
+    public int Id { get; set; }
+    public Guid LibraryId { get; set; }
+}
+
 public enum AssetType
 {
     Image = 0,

@@ -46,6 +46,7 @@ public static class DependencyInjection
         services.AddScoped<IMinioAdministrationService>(provider => provider.GetRequiredService<MinioConfigurationService>());
         services.AddScoped<IAssetStorage, MinioAssetStorage>();
         services.AddScoped<IDamService, DamService>();
+        services.AddScoped<ILocationService, LocationService>();
         services.AddScoped<IDirectoryAccessService, DirectoryAccessService>();
         services.AddScoped<IAccountService, AccountService>();
         services.AddHostedService<ThumbnailWorker>();

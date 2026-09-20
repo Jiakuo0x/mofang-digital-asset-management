@@ -60,14 +60,15 @@ npm.cmd run build
 
 ## 核心能力
 
-- 账户与登录：首次创建唯一主账号；所有账号验证当前密码后可修改自己的密码；主账号可新建、启停普通账户并重置其他账号的密码。
-- 目录权限：对普通账户配置目录“可见”和“可操作”授权，授权自动继承到全部子目录；主账号默认拥有全部权限。
+- 账户与登录：首次创建唯一主账号；所有账号验证当前密码后可修改自己的密码；主账号可新建账户、修改账号名称与显示名称、启停普通账户、重置其他账号密码，并在确认后删除普通账户。主账号和当前登录账号不可删除，删除时保留资产及历史日志。
+- 目录权限：对普通账户配置目录“可见”和“可操作”授权；勾选父目录自动勾选全部子目录并标明继承，取消时同步清除对应子目录授权；“可操作”包含“可见”，主账号默认拥有全部权限。
 - MinIO 配置：集成在“连接设置”中，仅主账号可配置服务端访问地址、客户端公开地址、访问密钥和 bucket；保存前会验证连接，Secret Key 加密落库且接口不返回明文。
 - 任意层级文件夹：创建、进入、重命名、移动、软删除、恢复；回收站中可彻底删除文件夹及其全部内容。
 - 资产上传：拖拽或选择多个文件；客户端显示逐文件进度；服务端流式写入 MinIO 并计算 SHA-256。
 - 资产管理：所有查询、预览、下载和写操作均在 API 服务端执行目录权限校验。
 - 操作日志：记录真实账户、对象名称、目录路径、重命名前后值和 JSON 详情，可按目录、文件名和账号组合筛选。
 - 检索筛选：名称搜索、类型筛选、时间/大小 API 筛选、最近修改/创建时间/名称/大小排序。
+- 文件与文件夹定位：右键“复制位置”发送完整路径和稳定定位码；搜索框旁“粘贴定位”或直接在搜索框粘贴位置，可进入目录、展开目录树并选中目标。支持名称候选选择、回收站状态和返回之前位置，只读用户同样可使用，接收者仍需具有查看权限。
 - 预览与打开：图片缩略图；视频与音频原生播放；PDF 内嵌查看；TXT/Markdown 文本查看；双击资产会下载到系统临时目录并使用默认应用打开。
 - 3D 与其他生产文件：V1 支持安全存储、分类、详情和下载，不提供 3D 在线渲染。
 - 持久化：元数据在 PostgreSQL，原文件与缩略图在 MinIO，重启容器不会丢失。
@@ -109,6 +110,7 @@ dotnet test Mofang.Dam.slnx
 
 Set-Location apps/desktop
 npm.cmd run lint
+npm.cmd run test:permissions
 npm.cmd run build
 ```
 
@@ -137,6 +139,7 @@ python tests/generate-smoke-assets.py
 ## 主要 API
 
 - `GET /api/info`、`GET /api/health`
+- `GET /api/locations/{asset|folder}/{id}`、`GET /api/locations/folder`（根目录）、`POST /api/locations/resolve`
 - `GET /api/auth/setup-status`、`POST /api/auth/setup|login|refresh|change-password`、`GET /api/auth/session`
 - `GET|POST|PUT /api/admin/accounts/*`（仅主账号）
 - `GET|PUT /api/admin/storage/minio`、`POST /api/admin/storage/minio/test`（仅主账号）

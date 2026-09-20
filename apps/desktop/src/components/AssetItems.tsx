@@ -15,19 +15,20 @@ const TypeIcon = ({ asset }: { asset: Asset }) => {
 
 export function FolderItem({ folder, view, onOpen, onMenu }: { folder: Folder; view: 'grid' | 'list'; onOpen: () => void; onMenu: (anchor: HTMLElement) => void }) {
   return (
-    <article className={`asset-item folder-item asset-item--${view} ${folder.navigationOnly ? 'is-navigation-only' : ''}`} onDoubleClick={onOpen} onContextMenu={event => { event.preventDefault(); if (folder.canOperate) onMenu(event.currentTarget) }}>
+    <article className={`asset-item folder-item asset-item--${view} ${folder.navigationOnly ? 'is-navigation-only' : ''}`} onDoubleClick={onOpen} onContextMenu={event => { event.preventDefault(); if (folder.canView) onMenu(event.currentTarget) }}>
       <div className="asset-item__visual folder-visual"><FolderIcon /></div>
       <div className="asset-item__copy"><strong>{folder.name}</strong><span>文件夹</span></div>
-      {folder.canOperate ? <button className="asset-item__menu" onClick={event => onMenu(event.currentTarget)} aria-label={`${folder.name} 操作`}><MoreVertical /></button> : null}
+      {folder.canView ? <button className="asset-item__menu" onClick={event => { event.stopPropagation(); onMenu(event.currentTarget) }} onDoubleClick={event => event.stopPropagation()} aria-label={`${folder.name} 操作`}><MoreVertical /></button> : null}
     </article>
   )
 }
 
-export function AssetItem({ asset, api, selected, view, onSelect, onOpen, onMenu }: { asset: Asset; api: MofangApi; selected: boolean; view: 'grid' | 'list'; onSelect: () => void; onOpen?: () => void; onMenu: (anchor: HTMLElement) => void }) {
+export function AssetItem({ asset, api, selected, located = false, view, onSelect, onOpen, onMenu }: { asset: Asset; api: MofangApi; selected: boolean; located?: boolean; view: 'grid' | 'list'; onSelect: () => void; onOpen?: () => void; onMenu: (anchor: HTMLElement) => void }) {
   const preview = api.resolveUrl(asset.thumbnailUrl ?? (asset.assetType === 'Image' ? asset.previewUrl : null))
   return (
     <article
-      className={`asset-item asset-item--${view} ${selected ? 'is-selected' : ''}`}
+      className={`asset-item asset-item--${view} ${selected ? 'is-selected' : ''} ${located ? 'is-located' : ''}`}
+      data-asset-id={asset.id}
       onClick={onSelect}
       onDoubleClick={onOpen}
       onContextMenu={event => { event.preventDefault(); onSelect(); onMenu(event.currentTarget) }}

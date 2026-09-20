@@ -83,15 +83,35 @@ public sealed class AccountService(
         var user = await RequireAccountAsync(id, cancellationToken);
         if (user.IsMasterAdmin && !request.IsEnabled) throw new InvalidOperationException("主账号不能停用。");
         if (user.Id == actor.Id && !request.IsEnabled) throw new InvalidOperationException("不能停用当前登录账号。");
+        var userName = request.UserName is null ? user.UserName! : NormalizeUserName(request.UserName);
+        var displayName = NormalizeDisplayName(request.DisplayName);
+        var previousUserName = user.UserName;
         var previousDisplayName = user.DisplayName;
         var previousEnabled = user.IsEnabled;
-        user.DisplayName = NormalizeDisplayName(request.DisplayName);
+        await using var transaction = await db.Database.BeginTransactionAsync(cancellationToken);
+        user.UserName = userName;
+        user.DisplayName = displayName;
         user.IsEnabled = request.IsEnabled;
         user.UpdatedAt = DateTimeOffset.UtcNow;
         ThrowIfFailed(await userManager.UpdateAsync(user));
-        OperationLogWriter.Add(db, actor, "UpdateAccount", "Account", user.Id, user.UserName!, null, "/账户管理", new { PreviousDisplayName = previousDisplayName, user.DisplayName, PreviousEnabled = previousEnabled, user.IsEnabled });
+        OperationLogWriter.Add(db, actor, "UpdateAccount", "Account", user.Id, user.UserName!, null, "/账户管理", new { PreviousUserName = previousUserName, user.UserName, PreviousDisplayName = previousDisplayName, user.DisplayName, PreviousEnabled = previousEnabled, user.IsEnabled });
         await db.SaveChangesAsync(cancellationToken);
+        await transaction.CommitAsync(cancellationToken);
         return ToDto(user, await db.DirectoryPermissions.CountAsync(x => x.AccountId == id, cancellationToken));
+    }
+
+    public async Task DeleteAccountAsync(Guid id, AccountContext actor, CancellationToken cancellationToken)
+    {
+        var user = await RequireAccountAsync(id, cancellationToken);
+        if (user.IsMasterAdmin) throw new InvalidOperationException("主账号不能删除。");
+        if (user.Id == actor.Id) throw new InvalidOperationException("不能删除当前登录账号。");
+
+        await using var transaction = await db.Database.BeginTransactionAsync(cancellationToken);
+        OperationLogWriter.Add(db, actor, "DeleteAccount", "Account", user.Id, user.UserName!, null, "/账户管理", new { user.UserName, user.DisplayName });
+        // Identity and directory grants cascade; audit records retain their account-name snapshot.
+        ThrowIfFailed(await userManager.DeleteAsync(user));
+        await db.SaveChangesAsync(cancellationToken);
+        await transaction.CommitAsync(cancellationToken);
     }
 
     public async Task ResetPasswordAsync(Guid id, ResetPasswordRequest request, AccountContext actor, CancellationToken cancellationToken)

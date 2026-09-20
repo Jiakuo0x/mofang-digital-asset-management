@@ -20,6 +20,7 @@
   </ItemGroup>
 
   <ItemGroup>
+    <ProjectReference Include="..\..\src\Mofang.Api\Mofang.Api.csproj" />
     <ProjectReference Include="..\..\src\Mofang.Application\Mofang.Application.csproj" />
     <ProjectReference Include="..\..\src\Mofang.Domain\Mofang.Domain.csproj" />
     <ProjectReference Include="..\..\src\Mofang.Infrastructure\Mofang.Infrastructure.csproj" />

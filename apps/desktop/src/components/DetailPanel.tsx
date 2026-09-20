@@ -1,5 +1,5 @@
 import { lazy, Suspense, useEffect, useState } from 'react'
-import { Box, Copy, Download, FileAudio, FileText, Hash, Play, X } from 'lucide-react'
+import { Box, Copy, Download, FileAudio, FileText, Hash, LocateFixed, Play, X } from 'lucide-react'
 import type { Asset, AssetDetail } from '../types'
 import type { MofangApi } from '../api/client'
 import { formatBytes } from '../format'
@@ -28,7 +28,7 @@ function MediaPreview({ detail, api }: { detail: AssetDetail; api: MofangApi }) 
   return <div className="generic-preview"><DocumentFormatIcon extension={asset.extension} fallback={<FileText />} /><span>{asset.extension.slice(1).toUpperCase() || '文件'}</span><small>当前格式可下载后查看</small></div>
 }
 
-export function DetailPanel({ detail, api, onClose, onDownload }: { detail: AssetDetail | null; api: MofangApi; onClose: () => void; onDownload: (asset: Asset) => void }) {
+export function DetailPanel({ detail, api, onClose, onDownload, onCopyLocation }: { detail: AssetDetail | null; api: MofangApi; onClose: () => void; onDownload: (asset: Asset) => void; onCopyLocation: (asset: Asset) => void }) {
   const [copied, setCopied] = useState('')
   if (!detail) return <aside className="detail-panel detail-panel--empty"><header><h2>文件详情</h2></header><div><Play /><p>选择一个资产查看预览和详细信息</p></div></aside>
   const { asset } = detail
@@ -43,12 +43,13 @@ export function DetailPanel({ detail, api, onClose, onDownload }: { detail: Asse
         <div><dt>大小</dt><dd>{formatBytes(asset.fileSize)}</dd></div>
         <div><dt>创建时间</dt><dd>{formatDate(asset.createdAt)}</dd></div>
         <div><dt>修改时间</dt><dd>{formatDate(asset.updatedAt)}</dd></div>
-        <div><dt>所属文件夹</dt><dd className="accent-text">{detail.folderPath}</dd></div>
+        <div><dt>文件位置</dt><dd className="accent-text detail-location"><span>{detail.folderPath.replace(/\/$/, '')}/{asset.fileName}</span><button onClick={() => onCopyLocation(asset)} aria-label="复制位置" title="复制位置"><Copy /></button></dd></div>
         <div><dt>Hash</dt><dd className="copy-value"><span>{asset.hash}</span><button onClick={() => copy('Hash', asset.hash)} aria-label="复制 Hash"><Copy /></button></dd></div>
         <div><dt>Asset ID</dt><dd className="copy-value"><span>{asset.id}</span><button onClick={() => copy('Asset ID', asset.id)} aria-label="复制 Asset ID"><Copy /></button></dd></div>
         <div><dt>版本</dt><dd>v{String(detail.currentVersionNumber).padStart(3, '0')}</dd></div>
       </dl>
       {copied ? <div className="copy-toast"><Hash />已复制 {copied}</div> : null}
+      <button className="button button--secondary detail-copy-location" onClick={() => onCopyLocation(asset)}><LocateFixed />复制位置</button>
       <button className="button button--secondary detail-download" onClick={() => onDownload(asset)}><Download />下载</button>
     </aside>
   )

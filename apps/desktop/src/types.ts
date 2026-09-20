@@ -41,6 +41,20 @@ export type Asset = {
 }
 
 export type AssetDetail = { asset: Asset; folderPath: string; bucket: string; objectKey: string; currentVersionNumber: number }
+export type LocationKind = 'asset' | 'folder'
+export type AssetLocation = {
+  libraryId: string
+  kind: LocationKind
+  id: string | null
+  name: string
+  path: string
+  code: string
+  status: 'Active' | 'Deleted'
+  folderId: string | null
+  fileSize: number | null
+  updatedAt: string | null
+}
+export type LocationResult = { match: 'exact' | 'candidates' | 'none' | 'differentLibrary'; items: AssetLocation[]; hasMore: boolean; expectedLibraryId: string | null }
 export type AssetPage = { items: Asset[]; page: number; pageSize: number; total: number }
 export type StorageSummary = { assetCount: number; totalBytes: number; deletedCount: number }
 export type MinioSettings = {

@@ -5,7 +5,7 @@ import type { Folder, OperationLog, OperationLogPage } from '../types'
 
 const actionNames: Record<string, string> = {
   CreateFolder: '创建文件夹', Rename: '重命名', Upload: '上传', Download: '下载', Delete: '删除', PermanentDelete: '彻底删除', Restore: '恢复', Move: '移动', Copy: '复制',
-  Login: '登录', SetupMaster: '初始化主账号', CreateAccount: '创建账户', UpdateAccount: '修改账户', ChangePassword: '修改自己的密码', ResetPassword: '重置密码', ConfigurePermissions: '配置权限', ConfigureMinio: '配置 MinIO',
+  Login: '登录', SetupMaster: '初始化主账号', CreateAccount: '创建账户', UpdateAccount: '修改账户', DeleteAccount: '删除账户', ChangePassword: '修改自己的密码', ResetPassword: '重置密码', ConfigurePermissions: '配置权限', ConfigureMinio: '配置 MinIO',
 }
 
 const flattenFolders = (folders: Folder[], level = 0): Array<{ folder: Folder; level: number }> => folders.flatMap(folder => [{ folder, level }, ...flattenFolders(folder.children ?? [], level + 1)])

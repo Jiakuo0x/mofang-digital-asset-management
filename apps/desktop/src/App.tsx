@@ -43,7 +43,7 @@ function App() {
 
   if (!config || configuring) return <ConnectionScreen initial={config} storageApi={account?.isMasterAdmin && api ? api : undefined} onConnected={connected} onCancel={config ? () => setConfiguring(false) : undefined} />
   if (!account || !tokens || !api) return <AccessScreen config={config} initialTokens={tokens} onConfigure={configure} onAuthenticated={(nextAccount, nextTokens) => { saveAuth(config, nextTokens); setTokens(nextTokens); setAccount(nextAccount) }} />
-  return <LibraryScreen config={config} api={api} account={account} appVersion={__APP_VERSION__} onConfigure={configure} onLogout={unauthorized} />
+  return <LibraryScreen config={config} api={api} account={account} appVersion={__APP_VERSION__} onConfigure={configure} onLogout={unauthorized} onAccountUpdated={updated => setAccount(previous => previous?.id === updated.id ? { ...previous, userName: updated.userName, displayName: updated.displayName } : previous)} />
 }
 
 export default App

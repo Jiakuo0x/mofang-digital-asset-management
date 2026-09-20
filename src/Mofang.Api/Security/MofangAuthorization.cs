@@ -19,7 +19,19 @@ public sealed class ActiveAccountHandler(MofangDbContext db) : AuthorizationHand
     protected override async Task HandleRequirementAsync(AuthorizationHandlerContext context, ActiveAccountRequirement requirement)
     {
         var value = context.User.FindFirstValue(ClaimTypes.NameIdentifier);
-        if (Guid.TryParse(value, out var id) && await db.Users.AsNoTracking().AnyAsync(x => x.Id == id && x.IsEnabled)) context.Succeed(requirement);
+        if (!Guid.TryParse(value, out var id)) return;
+        var user = await db.Users.AsNoTracking().Where(x => x.Id == id && x.IsEnabled)
+            .Select(x => new { x.UserName, x.DisplayName }).SingleOrDefaultAsync();
+        if (user is null) return;
+        // Existing tokens must use current account names in subsequent audit records.
+        if (context.User.Identity is ClaimsIdentity identity)
+        {
+            foreach (var type in new[] { ClaimTypes.Name, MofangClaimTypes.DisplayName })
+                foreach (var claim in identity.FindAll(type).ToArray()) identity.RemoveClaim(claim);
+            identity.AddClaim(new Claim(ClaimTypes.Name, user.UserName!));
+            identity.AddClaim(new Claim(MofangClaimTypes.DisplayName, user.DisplayName));
+        }
+        context.Succeed(requirement);
     }
 }
 

@@ -1,9 +1,10 @@
 import { useCallback, useDeferredValue, useEffect, useMemo, useRef, useState } from 'react'
 import type { DragEvent, MouseEvent as ReactMouseEvent } from 'react'
-import { Ban, Check, ChevronRight, Copy, Download, FilePlus2, Folder as FolderIcon, FolderInput, FolderOpen, FolderPlus, Grid2X2, HardDrive, KeyRound, List, LockKeyhole, LogOut, Pencil, RefreshCw, Search, Settings, Trash2, Undo2, Upload, UploadCloud, UserRound, X } from 'lucide-react'
+import { Ban, Check, ChevronRight, ClipboardPaste, Copy, Download, FilePlus2, Folder as FolderIcon, FolderInput, FolderOpen, FolderPlus, Grid2X2, HardDrive, KeyRound, List, LocateFixed, LockKeyhole, LogOut, Pencil, RefreshCw, Search, Settings, Trash2, Undo2, Upload, UploadCloud, UserRound, X } from 'lucide-react'
 import { openFile, saveFile, type MofangApi } from '../api/client'
 import { formatBytes } from '../format'
-import type { AccountSession, Asset, AssetDetail, Folder, LibraryConfig, StorageSummary, UploadItem } from '../types'
+import type { Account, AccountSession, Asset, AssetDetail, AssetLocation, Folder, LibraryConfig, LocationKind, StorageSummary, UploadItem } from '../types'
+import { formatLocation, looksLikeLocation, pendingLocationKey } from '../location'
 import { AccountsPanel } from './AccountsPanel'
 import { AssetItem, FolderItem } from './AssetItems'
 import { Brand } from './Brand'
@@ -13,6 +14,7 @@ import { Dialog } from './Dialog'
 import { FolderTree } from './FolderTree'
 import { OperationsPanel } from './OperationsPanel'
 import { UploadQueue } from './UploadQueue'
+import { LocationDialog } from './LocationDialog'
 
 type DialogState =
   | { kind: 'new-folder' }
@@ -29,6 +31,7 @@ type DialogState =
   | { kind: 'restore-asset'; asset: Asset }
 
 type WorkspacePage = 'library' | 'trash' | 'operations' | 'accounts'
+type PreviousLocation = { folderId: string | null; page: WorkspacePage; query: string; assetType: string; sort: string; assetId: string | null; locatedAssetId: string | null }
 
 const flattenFolders = (folders: Folder[]): Folder[] => folders.flatMap(folder => [folder, ...flattenFolders(folder.children ?? [])])
 const findFolder = (folders: Folder[], id: string | null): Folder | null => id ? flattenFolders(folders).find(folder => folder.id === id) ?? null : null
@@ -170,9 +173,10 @@ type Props = {
   appVersion: string
   onConfigure: () => void
   onLogout: () => void
+  onAccountUpdated: (account: Account) => void
 }
 
-export function LibraryScreen({ config, api, account, appVersion, onConfigure, onLogout }: Props) {
+export function LibraryScreen({ config, api, account, appVersion, onConfigure, onLogout, onAccountUpdated }: Props) {
   const [folders, setFolders] = useState<Folder[]>([])
   const [selectedFolderId, setSelectedFolderId] = useState<string | null>(null)
   const [assets, setAssets] = useState<Asset[]>([])
@@ -194,25 +198,45 @@ export function LibraryScreen({ config, api, account, appVersion, onConfigure, o
   const [uploads, setUploads] = useState<UploadItem[]>([])
   const [draggedFileCount, setDraggedFileCount] = useState<number | null>(null)
   const [changingPassword, setChangingPassword] = useState(false)
+  const [locationInput, setLocationInput] = useState<string | null>(() => sessionStorage.getItem(pendingLocationKey))
+  const [locatedAssetId, setLocatedAssetId] = useState<string | null>(null)
+  const [locatedTarget, setLocatedTarget] = useState<AssetLocation | null>(null)
+  const [previousLocation, setPreviousLocation] = useState<PreviousLocation | null>(null)
+  const [revealSequence, setRevealSequence] = useState(0)
+  const refreshSequence = useRef(0)
+  const navigationSequence = useRef(0)
+  const workspace = useRef<HTMLElement>(null)
   const fileInput = useRef<HTMLInputElement>(null)
   const dragDepth = useRef(0)
   const trash = page === 'trash'
   const managementPage = page === 'operations' || page === 'accounts'
 
   const refresh = useCallback(async () => {
+    const request = ++refreshSequence.current
     setLoading(true); setError('')
     const params = new URLSearchParams({ trash: String(trash), sort, pageSize: '200' })
     if (selectedFolderId) params.set('folderId', selectedFolderId)
     if (deferredQuery.trim()) params.set('query', deferredQuery.trim())
     if (assetType) params.set('type', assetType)
     try {
-      const [nextFolders, assetPage, nextSummary] = await Promise.all([api.folders(trash), api.assets(params), api.storageSummary()])
-      setFolders(nextFolders); setAssets(assetPage.items); setSummary(nextSummary)
-    } catch (reason) { setError(reason instanceof Error ? reason.message : '无法读取资产库。') }
-    finally { setLoading(false) }
-  }, [api, assetType, deferredQuery, selectedFolderId, sort, trash])
+      const [nextFolders, assetPage, nextSummary, targetDetail] = await Promise.all([api.folders(trash), api.assets(params), api.storageSummary(), locatedAssetId ? api.asset(locatedAssetId) : null])
+      if (request !== refreshSequence.current) return
+      const target = targetDetail?.asset
+      const includeTarget = target && target.folderId === selectedFolderId && (target.status === 'Deleted') === trash && !deferredQuery.trim() && !assetType
+      setFolders(nextFolders); setAssets(includeTarget && !assetPage.items.some(item => item.id === target.id) ? [target, ...assetPage.items] : assetPage.items); setSummary(nextSummary)
+      if (includeTarget) setDetail(targetDetail)
+    } catch (reason) { if (request === refreshSequence.current) { setError(reason instanceof Error ? reason.message : '无法读取资产库。'); setDetail(null) } }
+    finally { if (request === refreshSequence.current) setLoading(false) }
+  }, [api, assetType, deferredQuery, selectedFolderId, sort, trash, locatedAssetId])
 
-  useEffect(() => { const handle = window.setTimeout(() => void refresh(), 0); return () => window.clearTimeout(handle) }, [refresh])
+  useEffect(() => { const requests = refreshSequence; const handle = window.setTimeout(() => void refresh(), 0); return () => { window.clearTimeout(handle); requests.current++ } }, [refresh, revealSequence])
+  useEffect(() => { sessionStorage.removeItem(pendingLocationKey) }, [])
+  useEffect(() => {
+    if (loading || !locatedTarget) return
+    const target = locatedTarget.kind === 'asset' ? workspace.current?.querySelector<HTMLElement>(`[data-asset-id="${locatedTarget.id}"]`) : document.querySelector<HTMLElement>('.tree-row.is-selected')
+    target?.scrollIntoView({ block: 'nearest', behavior: 'smooth' })
+    if (locatedTarget.kind === 'asset') target?.focus({ preventScroll: true })
+  }, [loading, locatedTarget, revealSequence])
   useEffect(() => {
     if (!selectedAssetId) return
     let ignore = false
@@ -221,8 +245,9 @@ export function LibraryScreen({ config, api, account, appVersion, onConfigure, o
   }, [api, selectedAssetId])
 
   const notify = (message: string) => { setToast(message); window.setTimeout(() => setToast(''), 2400) }
-  const selectFolder = (id: string | null) => { setSelectedFolderId(id); setPage('library'); setSelectedAssetId(null) }
-  const selectPage = (next: WorkspacePage) => { setPage(next); setSelectedFolderId(null); setSelectedAssetId(null) }
+  const clearLocation = () => { navigationSequence.current++; setLocatedAssetId(null); setLocatedTarget(null) }
+  const selectFolder = (id: string | null, deleted = false) => { clearLocation(); setSelectedFolderId(id); setPage(deleted ? 'trash' : 'library'); setSelectedAssetId(null) }
+  const selectPage = (next: WorkspacePage) => { clearLocation(); setPage(next); setSelectedFolderId(null); setSelectedAssetId(null) }
   const currentFolder = findFolder(folders, selectedFolderId)
   const currentCanOperate = selectedFolderId ? Boolean(currentFolder?.canOperate) : account.canOperateRoot
   const canDropFiles = page === 'library' && currentCanOperate
@@ -231,17 +256,62 @@ export function LibraryScreen({ config, api, account, appVersion, onConfigure, o
   const breadcrumbs = findBreadcrumb(folders, selectedFolderId)
   const selectedDetail = detail?.asset.id === selectedAssetId ? detail : null
 
+  const copyLocation = async (kind: LocationKind, id: string | null) => {
+    try {
+      const location = await api.location(kind, id)
+      await navigator.clipboard.writeText(formatLocation(location, config.name))
+      notify('已复制位置，可发送给其他用户粘贴定位')
+    } catch (reason) { notify(reason instanceof Error ? reason.message : '复制失败，请重试。') }
+  }
+
+  const pasteLocation = async () => {
+    const request = ++navigationSequence.current
+    setToast('')
+    try { const text = await navigator.clipboard.readText(); if (request === navigationSequence.current) setLocationInput(text) }
+    catch { if (request === navigationSequence.current) setLocationInput('') }
+  }
+
+  const locate = async (candidate: AssetLocation) => {
+    const request = ++navigationSequence.current
+    // Recheck permission and current location even when the candidate list is already open.
+    const target = await api.location(candidate.kind, candidate.id)
+    const targetDeleted = target.status === 'Deleted'
+    const [nextFolders, targetDetail] = await Promise.all([api.folders(targetDeleted), target.kind === 'asset' && target.id ? api.asset(target.id) : null])
+    if (request !== navigationSequence.current) return
+    refreshSequence.current++
+    setPreviousLocation({ folderId: selectedFolderId, page, query, assetType, sort, assetId: selectedAssetId, locatedAssetId })
+    setFolders(nextFolders); setPage(targetDeleted ? 'trash' : 'library')
+    setSelectedFolderId(target.kind === 'folder' ? target.id : target.folderId)
+    setQuery(''); setAssetType(''); setSelectedAssetId(target.kind === 'asset' ? target.id : null)
+    setLocatedAssetId(target.kind === 'asset' ? target.id : null); setDetail(targetDetail)
+    setLocatedTarget(target); setLoading(true); setError(''); setLocationInput(null); setMenu(null)
+    setRevealSequence(value => value + 1)
+    notify(`${targetDeleted ? '已在回收站中定位' : '已定位'}：${target.name}`)
+  }
+
+  const returnToPrevious = () => {
+    if (!previousLocation) return
+    clearLocation(); setSelectedFolderId(previousLocation.folderId); setPage(previousLocation.page)
+    setQuery(previousLocation.query); setAssetType(previousLocation.assetType); setSort(previousLocation.sort)
+    setSelectedAssetId(previousLocation.assetId); setLocatedAssetId(previousLocation.locatedAssetId)
+    setPreviousLocation(null); setRevealSequence(value => value + 1)
+  }
+
   const openMenu = (anchor: HTMLElement, actions: MenuAction[]) => { const rect = anchor.getBoundingClientRect(); setMenu({ x: rect.right - 8, y: rect.bottom + 4, actions }) }
   const folderMenu = (folder: Folder, anchor: HTMLElement) => {
-    if (!folder.canOperate) return
-    openMenu(anchor, trash ? [
+    if (!folder.canView) return
+    const actions: MenuAction[] = [
+      { label: '复制位置', icon: <LocateFixed />, onClick: () => void copyLocation('folder', folder.id) },
+    ]
+    if (folder.canOperate) actions.push(...(trash ? [
       { label: '恢复', icon: <Undo2 />, onClick: () => setDialog({ kind: 'restore-folder', folder }) },
       { label: '彻底删除', icon: <Trash2 />, danger: true, onClick: () => setDialog({ kind: 'permanently-delete-folder', folder }) },
     ] : [
       { label: '重命名', icon: <Pencil />, onClick: () => setDialog({ kind: 'rename-folder', folder }) },
       { label: '移动', icon: <FolderInput />, onClick: () => setDialog({ kind: 'move-folder', folder }) },
       { label: '移入回收站', icon: <Trash2 />, danger: true, onClick: () => setDialog({ kind: 'delete-folder', folder }) },
-    ])
+    ]))
+    openMenu(anchor, actions)
   }
 
   const downloadAsset = async (asset: Asset) => {
@@ -263,7 +333,10 @@ export function LibraryScreen({ config, api, account, appVersion, onConfigure, o
   }
 
   const assetMenu = (asset: Asset, anchor: HTMLElement) => {
-    const actions: MenuAction[] = trash ? [] : [{ label: '下载', icon: <Download />, onClick: () => void downloadAsset(asset) }]
+    const actions: MenuAction[] = [
+      { label: '复制位置', icon: <LocateFixed />, onClick: () => void copyLocation('asset', asset.id) },
+    ]
+    if (!trash) actions.push({ label: '下载', icon: <Download />, onClick: () => void downloadAsset(asset) })
     if (asset.canOperate)
     {
       if (trash) actions.push(
@@ -273,7 +346,7 @@ export function LibraryScreen({ config, api, account, appVersion, onConfigure, o
       else actions.push(
         { label: '重命名', icon: <Pencil />, onClick: () => setDialog({ kind: 'rename-asset', asset }) },
         { label: '移动', icon: <FolderInput />, onClick: () => setDialog({ kind: 'move-asset', asset }) },
-        { label: '复制', icon: <Copy />, onClick: () => setDialog({ kind: 'copy-asset', asset }) },
+        { label: '创建副本', icon: <Copy />, onClick: () => setDialog({ kind: 'copy-asset', asset }) },
         { label: '移入回收站', icon: <Trash2 />, danger: true, onClick: () => setDialog({ kind: 'delete-asset', asset }) },
       )
     }
@@ -285,6 +358,8 @@ export function LibraryScreen({ config, api, account, appVersion, onConfigure, o
     event.preventDefault()
     const actions: MenuAction[] = []
     if (page === 'library' && currentCanOperate) actions.push({ label: '新建文件夹', icon: <FolderPlus />, onClick: () => setDialog({ kind: 'new-folder' }) })
+    if (page === 'library' && (selectedFolderId ? currentFolder?.canView : account.canViewRoot)) actions.push({ label: '复制当前位置', icon: <LocateFixed />, onClick: () => void copyLocation('folder', selectedFolderId) })
+    actions.push({ label: '粘贴定位', icon: <ClipboardPaste />, onClick: () => void pasteLocation() })
     actions.push({ label: '刷新', icon: <RefreshCw />, onClick: () => void refresh() })
     setMenu({ x: event.clientX, y: event.clientY, actions })
   }
@@ -305,7 +380,7 @@ export function LibraryScreen({ config, api, account, appVersion, onConfigure, o
       if (dialog.kind === 'delete-asset') await api.deleteAsset(dialog.asset.id)
       if (dialog.kind === 'permanently-delete-asset') await api.permanentlyDeleteAsset(dialog.asset.id)
       if (dialog.kind === 'restore-asset') await api.restoreAsset(dialog.asset.id, value ?? null)
-      notify(dialog.kind.startsWith('permanently-delete') ? '已彻底删除' : '操作已完成'); setDialog(null); setSelectedAssetId(null); await refresh()
+      notify(dialog.kind.startsWith('permanently-delete') ? '已彻底删除' : '操作已完成'); setDialog(null); setSelectedAssetId(null); clearLocation(); setRevealSequence(value => value + 1)
     } catch (reason) { notify(reason instanceof Error ? reason.message : '操作失败') }
     finally { setBusy(false) }
   }
@@ -357,7 +432,7 @@ export function LibraryScreen({ config, api, account, appVersion, onConfigure, o
       <div className="sidebar-brand"><Brand compact /></div>
       <div className="sidebar-label">资产库</div>
       <button className="library-selector"><HardDrive /><span>{config.name}</span><ChevronRight /></button>
-      <FolderTree folders={folders} selectedId={selectedFolderId} trash={trash} operations={page === 'operations'} accounts={page === 'accounts'} isMasterAdmin={account.isMasterAdmin} onSelect={selectFolder} onTrash={() => selectPage('trash')} onOperations={() => selectPage('operations')} onAccounts={() => selectPage('accounts')} onFolderMenu={folderMenu} />
+      <FolderTree folders={folders} selectedId={selectedFolderId} revealSequence={revealSequence} trash={trash} operations={page === 'operations'} accounts={page === 'accounts'} isMasterAdmin={account.isMasterAdmin} onSelect={id => selectFolder(id, id !== null && trash)} onTrash={() => selectPage('trash')} onOperations={() => selectPage('operations')} onAccounts={() => selectPage('accounts')} onFolderMenu={folderMenu} />
       <div className="sidebar-footer">
         <div className="sidebar-account">
           <span className="account-avatar"><UserRound /></span>
@@ -380,30 +455,33 @@ export function LibraryScreen({ config, api, account, appVersion, onConfigure, o
         <div className="breadcrumbs" aria-label="当前位置">
           {managementPage ? <><span className="breadcrumb-root">系统管理</span><span><ChevronRight /><strong>{managementTitle}</strong></span></> : <><button onClick={() => selectFolder(null)}>资产库</button>{trash ? <span><ChevronRight /><strong>回收站</strong></span> : breadcrumbs.map(folder => <span key={folder.id}><ChevronRight /><button onClick={() => selectFolder(folder.id)}>{folder.name}</button></span>)}</>}
         </div>
-        {!managementPage ? <div className="search-box"><Search /><input aria-label="搜索文件和文件夹" value={query} onChange={event => setQuery(event.target.value)} placeholder="搜索文件和文件夹" />{query ? <button onClick={() => setQuery('')} aria-label="清空搜索"><X /></button> : null}</div> : <div className="topbar-spacer" />}
+        {page === 'library' && (selectedFolderId ? currentFolder?.canView : account.canViewRoot) ? <button className="icon-button copy-current-location" onClick={() => void copyLocation('folder', selectedFolderId)} aria-label="复制当前位置" title="复制当前位置"><Copy /></button> : null}
+        {!managementPage ? <div className="search-box"><Search /><input aria-label="搜索文件和文件夹" value={query} onChange={event => setQuery(event.target.value)} placeholder="搜索，或粘贴位置后定位" onPaste={event => { const text = event.clipboardData.getData('text'); if (looksLikeLocation(text)) { event.preventDefault(); setLocationInput(text) } }} onKeyDown={event => { if (event.key === 'Enter' && query.trim()) setLocationInput(query) }} />{query ? <button onClick={() => setQuery('')} aria-label="清空搜索"><X /></button> : null}<button className="search-locate" onClick={() => void pasteLocation()} aria-label="粘贴定位" title="粘贴文件或文件夹位置"><ClipboardPaste /><span>粘贴定位</span></button></div> : <div className="topbar-spacer" />}
         {!managementPage ? <div className="view-toggle"><button className={view === 'grid' ? 'is-selected' : ''} onClick={() => setView('grid')} aria-label="网格视图"><Grid2X2 /></button><button className={view === 'list' ? 'is-selected' : ''} onClick={() => setView('list')} aria-label="列表视图"><List /></button></div> : null}
         {page === 'library' && currentCanOperate ? <div className="topbar-actions" aria-label="文件操作"><button className="button button--secondary topbar-action" onClick={() => setDialog({ kind: 'new-folder' })}><FolderPlus />新建文件夹</button><button className="button button--primary topbar-action topbar-action--primary" onClick={() => fileInput.current?.click()}><Upload />上传</button></div> : null}
         <input ref={fileInput} type="file" multiple hidden onChange={event => { if (event.target.files) void uploadFiles(event.target.files); event.target.value = '' }} />
         {!managementPage ? <span className="topbar-drag-space" aria-hidden="true" /> : null}
       </header>
 
-      {page === 'operations' ? <OperationsPanel api={api} folders={folders} /> : page === 'accounts' ? <AccountsPanel api={api} folders={folders} currentAccountId={account.id} /> : <>
+      {page === 'operations' ? <OperationsPanel api={api} folders={folders} /> : page === 'accounts' ? <AccountsPanel api={api} folders={folders} currentAccountId={account.id} onAccountUpdated={onAccountUpdated} /> : <>
         <div className="workspace-header"><div><h1>{title}</h1>{draggedFileCount !== null ? <div className={`file-drop-inline ${canDropFiles ? 'is-ready' : 'is-blocked'}`} role="status" aria-live="polite"><span>{canDropFiles ? <UploadCloud /> : <Ban />}</span><strong>{canDropFiles ? '松开以上传' : '当前目录不可上传'}</strong>{canDropFiles ? <small>{draggedFileCount > 0 ? `${draggedFileCount} 个文件 · ` : ''}{uploadDestination}</small> : null}</div> : <span>{assets.length + visibleChildFolders.length} 个项目</span>}</div><div className="filters"><select value={assetType} onChange={event => setAssetType(event.target.value)}><option value="">全部类型</option><option value="Image">图片</option><option value="Video">视频</option><option value="Audio">音频</option><option value="Document">文档</option><option value="Model3D">3D 模型</option><option value="ProjectFile">工程文件</option><option value="Archive">压缩包</option><option value="Other">其他</option></select><select value={sort} onChange={event => setSort(event.target.value)}><option value="updated">最近修改</option><option value="created">创建时间</option><option value="name">名称</option><option value="size">文件大小</option></select><button className="icon-button" onClick={() => void refresh()} aria-label="刷新"><RefreshCw /></button></div></div>
-        <section className={`asset-workspace view-${view} ${draggedFileCount !== null ? canDropFiles ? 'is-file-dragging' : 'is-file-dragging is-drop-blocked' : ''}`} onContextMenu={workspaceMenu}>
+        <section ref={workspace} className={`asset-workspace view-${view} ${draggedFileCount !== null ? canDropFiles ? 'is-file-dragging' : 'is-file-dragging is-drop-blocked' : ''}`} onContextMenu={workspaceMenu}>
+          {previousLocation ? <div className="location-banner" role="status"><LocateFixed /><span title={locatedTarget?.path}>{locatedTarget ? `${locatedTarget.status === 'Deleted' ? '回收站 · ' : ''}${locatedTarget.path}` : '已离开定位位置'}</span><button onClick={returnToPrevious}><Undo2 />返回之前位置</button><button onClick={() => setPreviousLocation(null)} aria-label="关闭定位提示"><X /></button></div> : null}
           {loading ? <div className="empty-state"><RefreshCw className="spin" /><p>正在读取资产库…</p></div> : error ? <div className="empty-state empty-state--error"><HardDrive /><p>{error}</p><button className="button button--secondary" onClick={() => void refresh()}>重试</button></div> : visibleChildFolders.length === 0 && assets.length === 0 ? <div className="empty-state"><FilePlus2 /><p>{trash ? '回收站是空的' : deferredQuery.trim() ? '没有匹配的资产或文件夹' : '这里还没有资产'}</p>{page === 'library' && currentCanOperate && !deferredQuery.trim() ? <span>拖入文件，或使用右上角“上传”开始</span> : null}</div> : <div className="asset-collection">
-            {visibleChildFolders.map(folder => <FolderItem key={folder.id} folder={folder} view={view} onOpen={() => { if (folder.canView) selectFolder(folder.id) }} onMenu={anchor => folderMenu(folder, anchor)} />)}
-            {assets.map(asset => <AssetItem key={asset.id} asset={asset} api={api} view={view} selected={selectedAssetId === asset.id} onSelect={() => setSelectedAssetId(asset.id)} onOpen={trash ? undefined : () => void openAsset(asset)} onMenu={anchor => assetMenu(asset, anchor)} />)}
+            {visibleChildFolders.map(folder => <FolderItem key={folder.id} folder={folder} view={view} onOpen={() => { if (folder.canView) selectFolder(folder.id, trash) }} onMenu={anchor => folderMenu(folder, anchor)} />)}
+            {assets.map(asset => <AssetItem key={asset.id} asset={asset} api={api} view={view} located={locatedTarget?.kind === 'asset' && locatedTarget.id === asset.id} selected={selectedAssetId === asset.id} onSelect={() => setSelectedAssetId(asset.id)} onOpen={trash ? undefined : () => void openAsset(asset)} onMenu={anchor => assetMenu(asset, anchor)} />)}
           </div>}
         </section>
       </>}
     </section>
 
-    {!managementPage ? <DetailPanel detail={selectedDetail} api={api} onClose={() => setSelectedAssetId(null)} onDownload={asset => void downloadAsset(asset)} /> : null}
+    {!managementPage ? <DetailPanel detail={selectedDetail} api={api} onClose={() => setSelectedAssetId(null)} onDownload={asset => void downloadAsset(asset)} onCopyLocation={asset => void copyLocation('asset', asset.id)} /> : null}
     <footer className="statusbar"><span><HardDrive />{summary.assetCount} 个资产 · {formatBytes(summary.totalBytes)}</span><span className="statusbar__upload"><Upload />上传队列 {uploads.filter(item => item.state === 'uploading').length} 个任务</span></footer>
     <UploadQueue items={uploads} onClear={() => setUploads(previous => previous.filter(item => item.state === 'uploading'))} />
     {menu ? <ContextMenu {...menu} onClose={() => setMenu(null)} /> : null}
     {dialog ? <ActionDialog state={dialog} folders={trash ? [] : folders} canOperateRoot={account.canOperateRoot} onClose={() => setDialog(null)} onSubmit={value => void submitDialog(value)} busy={busy} /> : null}
     {changingPassword ? <ChangePasswordDialog api={api} onClose={() => setChangingPassword(false)} onChanged={() => { setChangingPassword(false); notify('密码已修改，登录令牌已安全更新') }} /> : null}
+    {locationInput !== null ? <LocationDialog key={locationInput} api={api} initialInput={locationInput} onClose={() => { navigationSequence.current++; setLocationInput(null) }} onLocate={locate} onConfigure={input => { sessionStorage.setItem(pendingLocationKey, input); onConfigure() }} /> : null}
     {toast ? <div className="toast" role="status">{toast}</div> : null}
   </main>
 }

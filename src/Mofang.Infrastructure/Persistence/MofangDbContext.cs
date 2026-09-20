@@ -9,6 +9,7 @@ namespace Mofang.Infrastructure.Persistence;
 public sealed class MofangDbContext(DbContextOptions<MofangDbContext> options) : IdentityUserContext<ApplicationUser, Guid>(options)
 {
     public DbSet<Folder> Folders => Set<Folder>();
+    public DbSet<LibraryIdentity> LibraryIdentities => Set<LibraryIdentity>();
     public DbSet<Asset> Assets => Set<Asset>();
     public DbSet<AssetVersion> AssetVersions => Set<AssetVersion>();
     public DbSet<StorageObject> StorageObjects => Set<StorageObject>();
@@ -19,6 +20,14 @@ public sealed class MofangDbContext(DbContextOptions<MofangDbContext> options) :
     protected override void OnModelCreating(ModelBuilder modelBuilder)
     {
         base.OnModelCreating(modelBuilder);
+
+        modelBuilder.Entity<LibraryIdentity>(entity =>
+        {
+            entity.ToTable("library_identity");
+            entity.HasKey(x => x.Id);
+            entity.Property(x => x.Id).ValueGeneratedNever();
+            entity.HasIndex(x => x.LibraryId).IsUnique();
+        });
 
         modelBuilder.Entity<ApplicationUser>(entity =>
         {

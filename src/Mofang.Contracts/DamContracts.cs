@@ -125,7 +125,7 @@ public sealed record AccountDto(
     DateTimeOffset? LastLoginAt);
 
 public sealed record CreateAccountRequest(string UserName, string DisplayName, string Password);
-public sealed record UpdateAccountRequest(string DisplayName, bool IsEnabled);
+public sealed record UpdateAccountRequest(string DisplayName, bool IsEnabled, string? UserName = null);
 public sealed record ResetPasswordRequest(string Password);
 public sealed record DirectoryPermissionDto(Guid? FolderId, bool CanView, bool CanOperate);
 public sealed record ReplaceDirectoryPermissionsRequest(IReadOnlyList<DirectoryPermissionDto> Permissions);

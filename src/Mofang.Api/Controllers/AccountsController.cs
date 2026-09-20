@@ -24,6 +24,13 @@ public sealed class AccountsController(IAccountService accounts) : ControllerBas
     [HttpPut("{id:guid}")]
     public Task<AccountDto> Update(Guid id, UpdateAccountRequest request, CancellationToken cancellationToken) => accounts.UpdateAccountAsync(id, request, User.ToAccountContext(), cancellationToken);
 
+    [HttpDelete("{id:guid}")]
+    public async Task<IActionResult> Delete(Guid id, CancellationToken cancellationToken)
+    {
+        await accounts.DeleteAccountAsync(id, User.ToAccountContext(), cancellationToken);
+        return NoContent();
+    }
+
     [HttpPost("{id:guid}/reset-password")]
     public async Task<IActionResult> ResetPassword(Guid id, ResetPasswordRequest request, CancellationToken cancellationToken)
     {

@@ -80,6 +80,12 @@ public interface IDirectoryAccessService
     Task EnsureCanOperateAsync(AccountContext account, Guid? folderId, CancellationToken cancellationToken);
 }
 
+public interface ILocationService
+{
+    Task<LocationDto> GetAsync(string kind, Guid? id, AccountContext account, CancellationToken cancellationToken);
+    Task<ResolveLocationResponse> ResolveAsync(string input, AccountContext account, CancellationToken cancellationToken);
+}
+
 public interface IAccountService
 {
     Task<bool> RequiresSetupAsync(CancellationToken cancellationToken);
@@ -90,6 +96,7 @@ public interface IAccountService
     Task<IReadOnlyList<AccountDto>> GetAccountsAsync(CancellationToken cancellationToken);
     Task<AccountDto> CreateAccountAsync(CreateAccountRequest request, AccountContext actor, CancellationToken cancellationToken);
     Task<AccountDto> UpdateAccountAsync(Guid id, UpdateAccountRequest request, AccountContext actor, CancellationToken cancellationToken);
+    Task DeleteAccountAsync(Guid id, AccountContext actor, CancellationToken cancellationToken);
     Task ResetPasswordAsync(Guid id, ResetPasswordRequest request, AccountContext actor, CancellationToken cancellationToken);
     Task<AccountPermissionsDto> GetPermissionsAsync(Guid id, CancellationToken cancellationToken);
     Task<AccountPermissionsDto> ReplacePermissionsAsync(Guid id, ReplaceDirectoryPermissionsRequest request, AccountContext actor, CancellationToken cancellationToken);
