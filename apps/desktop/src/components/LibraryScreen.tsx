@@ -1,7 +1,7 @@
 import { useCallback, useDeferredValue, useEffect, useMemo, useRef, useState } from 'react'
 import type { DragEvent, MouseEvent as ReactMouseEvent } from 'react'
 import { Ban, Check, ChevronRight, Copy, Download, FilePlus2, Folder as FolderIcon, FolderInput, FolderOpen, FolderPlus, Grid2X2, HardDrive, KeyRound, List, LockKeyhole, LogOut, Pencil, RefreshCw, Search, Settings, Trash2, Undo2, Upload, UploadCloud, UserRound, X } from 'lucide-react'
-import { openExternal, openFile, type MofangApi } from '../api/client'
+import { openFile, saveFile, type MofangApi } from '../api/client'
 import { formatBytes } from '../format'
 import type { AccountSession, Asset, AssetDetail, Folder, LibraryConfig, StorageSummary, UploadItem } from '../types'
 import { AccountsPanel } from './AccountsPanel'
@@ -245,7 +245,11 @@ export function LibraryScreen({ config, api, account, appVersion, onConfigure, o
   }
 
   const downloadAsset = async (asset: Asset) => {
-    try { const link = await api.downloadLink(asset.id); await openExternal(link.url); notify(`正在下载 ${link.fileName}`) }
+    try {
+      const link = await api.downloadLink(asset.id)
+      const result = await saveFile(link.url, link.fileName)
+      if (!result.canceled) notify(`已保存 ${link.fileName}`)
+    }
     catch (reason) { notify(reason instanceof Error ? reason.message : '无法下载文件。') }
   }
 

@@ -7,6 +7,7 @@ interface Window {
     platform: string
     openExternal: (url: string) => Promise<void>
     openFile: (url: string, fileName: string) => Promise<void>
+    saveFile: (url: string, fileName: string) => Promise<{ canceled: boolean }>
     setModalActive: (active: boolean) => void
   }
 }

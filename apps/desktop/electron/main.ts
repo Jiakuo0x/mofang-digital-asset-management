@@ -1,6 +1,6 @@
-import { app, BrowserWindow, ipcMain, net, shell } from 'electron'
+import { app, BrowserWindow, dialog, ipcMain, net, shell } from 'electron'
 import { createWriteStream } from 'node:fs'
-import { mkdtemp, rm } from 'node:fs/promises'
+import { copyFile, mkdtemp, rm } from 'node:fs/promises'
 import path from 'node:path'
 import { Readable } from 'node:stream'
 import { pipeline } from 'node:stream/promises'
@@ -80,6 +80,36 @@ ipcMain.handle('mofang:open-file', async (_event, url: string, fileName: string)
   } catch (error) {
     await rm(temporaryDirectory, { recursive: true, force: true })
     throw error
+  }
+})
+
+ipcMain.handle('mofang:save-file', async (event, url: string, fileName: string) => {
+  const target = new URL(url)
+  if (target.protocol !== 'http:' && target.protocol !== 'https:') throw new Error('不支持的文件地址。')
+
+  const safeFileName = safeTemporaryFileName(fileName)
+  const owner = BrowserWindow.fromWebContents(event.sender)
+  const options = {
+    title: '保存文件',
+    defaultPath: path.join(app.getPath('downloads'), safeFileName),
+    buttonLabel: '保存',
+  }
+  const selection = owner && !owner.isDestroyed()
+    ? await dialog.showSaveDialog(owner, options)
+    : await dialog.showSaveDialog(options)
+  if (selection.canceled || !selection.filePath) return { canceled: true }
+
+  const temporaryDirectory = await mkdtemp(path.join(app.getPath('temp'), 'mofang-dam-download-'))
+  const temporaryFile = path.join(temporaryDirectory, safeFileName)
+  try {
+    const response = await net.fetch(target.toString())
+    if (!response.ok || !response.body) throw new Error(`文件下载失败 (${response.status})。`)
+    const responseBody = response.body as unknown as import('node:stream/web').ReadableStream<Uint8Array>
+    await pipeline(Readable.fromWeb(responseBody), createWriteStream(temporaryFile))
+    await copyFile(temporaryFile, selection.filePath)
+    return { canceled: false }
+  } finally {
+    await rm(temporaryDirectory, { recursive: true, force: true })
   }
 })
 

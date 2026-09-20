@@ -1,7 +1,7 @@
 {
   "name": "mofang-desktop",
   "private": true,
-  "version": "1.1.0",
+  "version": "1.1.1",
   "description": "魔方数字资产管理 Electron 桌面客户端",
   "author": "Jiakuo Zhang",
   "repository": "https://github.com/Jiakuo0x/mofang-digital-asset-management.git",

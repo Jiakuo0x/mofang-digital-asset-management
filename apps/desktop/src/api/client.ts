@@ -51,6 +51,25 @@ export const openFile = async (url: string, fileName: string) => {
   else await openExternal(url)
 }
 
+export const saveFile = async (url: string, fileName: string) => {
+  if (window.mofangDesktop) return window.mofangDesktop.saveFile(url, fileName)
+
+  const response = await fetch(url)
+  if (!response.ok) throw new Error(`文件下载失败 (${response.status})。`)
+  const objectUrl = URL.createObjectURL(await response.blob())
+  try {
+    const anchor = document.createElement('a')
+    anchor.href = objectUrl
+    anchor.download = fileName
+    document.body.append(anchor)
+    anchor.click()
+    anchor.remove()
+    return { canceled: false }
+  } finally {
+    URL.revokeObjectURL(objectUrl)
+  }
+}
+
 export const createApi = (
   config: LibraryConfig,
   initialTokens: AuthTokens | null = null,
