@@ -1,4 +1,4 @@
-name: Release desktop ZIPs
+name: Release desktop installers and ZIPs
 
 on:
   push:
@@ -60,6 +60,8 @@ jobs:
           Expand-Archive -LiteralPath $archive[0].FullName -DestinationPath $destination
           npm run test:packaged -- "$destination/Mofang.exe"
           if ($LASTEXITCODE -ne 0) { exit $LASTEXITCODE }
+          $installer = @(Get-ChildItem release/Mofang-*-windows-x64-setup.exe)
+          if ($installer.Count -ne 1 -or $installer[0].Length -lt 1MB) { throw 'Expected one Windows installer' }
       - name: Extract and verify macOS ZIP
         if: runner.os == 'macOS'
         run: |
@@ -72,10 +74,16 @@ jobs:
           lipo "$app/Contents/Frameworks/Electron Framework.framework/Versions/A/Electron Framework" -verify_arch x86_64 arm64
           codesign --verify --deep --strict --verbose=2 "$app"
           npm run test:packaged -- "$executable"
+          dmg=(release/Mofang-*-macos-universal.dmg)
+          test "${#dmg[@]}" -eq 1
+          hdiutil verify "${dmg[0]}"
       - uses: actions/upload-artifact@v4
         with:
           name: desktop-${{ matrix.platform }}
-          path: apps/desktop/release/Mofang-*.zip
+          path: |
+            apps/desktop/release/Mofang-*.zip
+            apps/desktop/release/Mofang-*.exe
+            apps/desktop/release/Mofang-*.dmg
           if-no-files-found: error
           compression-level: 0
           retention-days: 14
@@ -104,13 +112,15 @@ jobs:
           cd release
           version="${RELEASE_TAG#v}"
           test -f "Mofang-${version}-windows-x64.zip"
+          test -f "Mofang-${version}-windows-x64-setup.exe"
           test -f "Mofang-${version}-macos-universal.zip"
-          sha256sum Mofang-*.zip > SHA256SUMS.txt
+          test -f "Mofang-${version}-macos-universal.dmg"
+          sha256sum Mofang-*.zip Mofang-*.exe Mofang-*.dmg > SHA256SUMS.txt
           sha256sum --check SHA256SUMS.txt
           cp ../apps/desktop/packaging/使用说明.txt ./README.txt
           # Build and test both platforms before exposing any download.
           # An existing release is never overwritten by a rerun.
-          gh release create "$RELEASE_TAG" Mofang-*.zip SHA256SUMS.txt README.txt \
-            --verify-tag --draft --title "魔方数字资产管理 ${RELEASE_TAG} · 免安装版" \
+          gh release create "$RELEASE_TAG" Mofang-*.zip Mofang-*.exe Mofang-*.dmg SHA256SUMS.txt README.txt \
+            --verify-tag --draft --title "魔方数字资产管理 ${RELEASE_TAG} · 安装包与免安装版" \
             --notes-file ../docs/releases/desktop-zip.md
           gh release edit "$RELEASE_TAG" --draft=false --latest

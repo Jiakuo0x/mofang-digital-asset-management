@@ -17,15 +17,23 @@ win:
   target:
     - target: zip
       arch: x64
+    - target: nsis
+      arch: x64
   executableName: Mofang
   icon: public/brand/mofang-cube.png
   artifactName: Mofang-${version}-windows-${arch}.${ext}
+nsis:
+  oneClick: false
+  allowToChangeInstallationDirectory: true
+  artifactName: Mofang-${version}-windows-${arch}-setup.${ext}
 mac:
   extraResources:
     - from: packaging/使用说明.txt
       to: 使用说明.txt
   target:
     - target: zip
+      arch: universal
+    - target: dmg
       arch: universal
   artifactName: Mofang-${version}-macos-${arch}.${ext}
   category: public.app-category.productivity
@@ -35,3 +43,5 @@ mac:
   entitlements: packaging/entitlements.mac.plist
   entitlementsInherit: packaging/entitlements.mac.plist
   notarize: false
+dmg:
+  artifactName: Mofang-${version}-macos-${arch}.${ext}

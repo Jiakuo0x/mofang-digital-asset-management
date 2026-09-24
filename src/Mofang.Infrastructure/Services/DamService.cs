@@ -155,6 +155,7 @@ public sealed class DamService(
         var status = trash ? EntityStatus.Deleted : EntityStatus.Active;
         var assets = db.Assets.AsNoTracking().Where(x => x.Status == status);
         if (folderId.HasValue) assets = assets.Where(x => x.FolderId == folderId);
+        else if (!trash) assets = access.CanViewRoot ? assets.Where(x => x.FolderId == null) : assets.Where(x => false);
         else if (!account.IsMasterAdmin)
         {
             var visibleFolderIds = access.Folders.Where(x => x.Value.CanView).Select(x => x.Key).ToArray();

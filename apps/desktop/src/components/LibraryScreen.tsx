@@ -423,7 +423,7 @@ export function LibraryScreen({ config, api, account, appVersion, onConfigure, o
     setDraggedFileCount(null)
     if (canDropFiles) void uploadFiles(event.dataTransfer.files)
   }
-  const title = trash ? '回收站' : currentFolder?.name ?? '全部素材'
+  const title = trash ? '回收站' : currentFolder?.name ?? '资产库根目录'
   const uploadDestination = currentFolder?.name ?? '资产库根目录'
   const managementTitle = page === 'operations' ? '操作日志' : page === 'accounts' ? '账号与权限' : ''
 

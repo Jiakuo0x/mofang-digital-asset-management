@@ -40,7 +40,7 @@ export function FolderTree({ folders, selectedId, revealSequence, trash, operati
   return (
     <nav className="folder-navigation" aria-label="资产目录">
       <div className="sidebar-label">文件夹</div>
-      <button className={`sidebar-item ${!selectedId && !trash && !operations && !accounts ? 'is-selected' : ''}`} onClick={() => onSelect(null)}><FolderOpen /><span>全部素材</span></button>
+      <button className={`sidebar-item ${!selectedId && !trash && !operations && !accounts ? 'is-selected' : ''}`} onClick={() => onSelect(null)}><FolderOpen /><span>资产库根目录</span></button>
       <div className="folder-tree">{folders.map(folder => <FolderBranch key={folder.id} folder={folder} level={0} selectedId={selectedId} revealSequence={revealSequence} onSelect={onSelect} onMenu={onFolderMenu} />)}</div>
       <div className="sidebar-divider" />
       <button className={`sidebar-item ${trash ? 'is-selected' : ''}`} onClick={onTrash}><Trash2 /><span>回收站</span></button>

@@ -1,17 +1,17 @@
 # 魔方数字资产管理
 
-面向影视制作素材的本地或局域网数字资产管理。系统由 ASP.NET Core 10 API、PostgreSQL 17、MinIO 与 Electron + React 19 桌面端组成，当前版本为 `1.1.2`，支持账户登录、目录级权限、文件夹、批量上传、检索筛选、预览、下载、移动、复制、重命名、回收站、恢复、彻底删除和详细操作日志。
+面向影视制作素材的本地或局域网数字资产管理。系统由 ASP.NET Core 10 API、PostgreSQL 17、MinIO 与 Electron + React 19 桌面端组成，当前版本为 `1.1.3`，支持账户登录、目录级权限、文件夹、批量上传、检索筛选、预览、下载、移动、复制、重命名、回收站、恢复、彻底删除和详细操作日志。
 
 ## 快速启动
 
-### 下载免安装客户端
+### 下载桌面客户端
 
-前往 [GitHub Releases](https://github.com/Jiakuo0x/mofang-digital-asset-management/releases/latest) 下载对应系统的 ZIP：
+前往 [GitHub Releases](https://github.com/Jiakuo0x/mofang-digital-asset-management/releases/latest) 下载对应系统的安装包或免安装 ZIP：
 
-- Windows x64：`Mofang-<版本>-windows-x64.zip`，完整解压后双击 `Mofang.exe`，保留同目录其他文件。
-- macOS（Intel / Apple 芯片通用）：`Mofang-<版本>-macos-universal.zip`，解压后双击 `魔方数字资产管理.app`。
+- Windows x64：`Mofang-<版本>-windows-x64-setup.exe` 安装程序；或下载 `Mofang-<版本>-windows-x64.zip`，完整解压后双击 `Mofang.exe`。
+- macOS（Intel / Apple 芯片通用）：`Mofang-<版本>-macos-universal.dmg`，打开后将应用拖入“应用程序”；或下载同名 ZIP 解压运行。
 
-客户端已包含运行环境，不需要安装 Node.js、.NET SDK 或 Docker。ZIP 仅包含桌面客户端，需连接下方部署的 API 服务。macOS 版使用临时签名，未经过 Apple 公证；如首次打开被系统拦截，在“系统设置 → 隐私与安全性”中对本应用选择“仍要打开”。发布页提供详细使用说明与 SHA-256 校验值。
+客户端已包含运行环境，不需要安装 Node.js、.NET SDK 或 Docker。安装包与 ZIP 仅包含桌面客户端，需连接下方部署的 API 服务。macOS 版使用临时签名，未经过 Apple 公证；如首次打开被系统拦截，在“系统设置 → 隐私与安全性”中对本应用选择“仍要打开”。发布页提供详细使用说明与 SHA-256 校验值。
 
 ### 部署资产服务
 
@@ -120,11 +120,13 @@ npm.cmd run build
 python tests/generate-smoke-assets.py
 ```
 
-### 构建免安装 ZIP
+### 构建安装包与免安装 ZIP
 
-在 `apps/desktop` 目录执行 `npm ci` 后，Windows 上运行 `npm run pack:win`，macOS 上运行 `npm run pack:mac`。产物写入 `apps/desktop/release/`。macOS 通用包需要在 macOS 上合并双架构并签名。
+在 `apps/desktop` 目录执行 `npm ci` 后，Windows 上运行 `npm run pack:win` 生成 EXE 安装包与 ZIP，macOS 上运行 `npm run pack:mac` 生成 DMG 与 ZIP。产物写入 `apps/desktop/release/`。macOS 通用包需要在 macOS 上合并双架构并签名。
 
-推送与 `apps/desktop/package.json` 版本一致的 Git 标签（如 `v1.1.2`），会触发 `.github/workflows/release-desktop.yml`。工作流在 Windows 和 macOS 构建机上分别构建、解压并执行启动烟测，全部通过后发布两个 ZIP、使用说明和 `SHA256SUMS.txt`。手动运行工作流只生成 Actions 构建产物，不创建 Release。已有 Release 不会被重新运行覆盖。
+如需 Windows 安装程序，在 Windows 上运行 `npm run pack:win:installer`，会生成可选择安装目录的 `.exe` 安装包。
+
+推送与 `apps/desktop/package.json` 版本一致的 Git 标签（如 `v1.1.3`），会触发 `.github/workflows/release-desktop.yml`。工作流在 Windows 和 macOS 构建机上分别构建与验证，全部通过后发布两个安装包、两个 ZIP、使用说明和 `SHA256SUMS.txt`。手动运行工作流只生成 Actions 构建产物，不创建 Release。已有 Release 不会被重新运行覆盖。
 
 主要项目：
 
