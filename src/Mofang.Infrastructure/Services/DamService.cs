@@ -1,4 +1,7 @@
 using Microsoft.EntityFrameworkCore;
+using System.Security.Cryptography;
+using System.Text;
+using System.Text.Json;
 using Mofang.Application;
 using Mofang.Contracts;
 using Mofang.Domain;
@@ -146,16 +149,17 @@ public sealed class DamService(
         return ToFolderDto(root, new FolderAccess(true, true));
     }
 
-    public async Task<AssetPageDto> SearchAssetsAsync(Guid? folderId, string? query, string? type, bool trash, DateTimeOffset? createdFrom, DateTimeOffset? createdTo, long? minSize, long? maxSize, string sort, int page, int pageSize, AccountContext account, CancellationToken cancellationToken)
+    public async Task<AssetPageDto> SearchAssetsAsync(Guid? folderId, string? query, string? type, bool trash, DateTimeOffset? createdFrom, DateTimeOffset? createdTo, long? minSize, long? maxSize, string sort, int page, int pageSize, AccountContext account, CancellationToken cancellationToken, string scope = "folder")
     {
+        if (scope is not ("folder" or "all")) throw new ArgumentException("搜索范围无效。");
         page = Math.Max(1, page);
         pageSize = Math.Clamp(pageSize, 1, 200);
         var access = await directoryAccess.GetAccessAsync(account, cancellationToken);
         if (folderId.HasValue) await directoryAccess.EnsureCanViewAsync(account, folderId, cancellationToken);
         var status = trash ? EntityStatus.Deleted : EntityStatus.Active;
         var assets = db.Assets.AsNoTracking().Where(x => x.Status == status);
-        if (folderId.HasValue) assets = assets.Where(x => x.FolderId == folderId);
-        else if (!trash) assets = access.CanViewRoot ? assets.Where(x => x.FolderId == null) : assets.Where(x => false);
+        if (scope == "folder" && folderId.HasValue) assets = assets.Where(x => x.FolderId == folderId);
+        else if (scope == "folder" && !trash) assets = access.CanViewRoot ? assets.Where(x => x.FolderId == null) : assets.Where(x => false);
         else if (!account.IsMasterAdmin)
         {
             var visibleFolderIds = access.Folders.Where(x => x.Value.CanView).Select(x => x.Key).ToArray();
@@ -165,6 +169,7 @@ public sealed class DamService(
         }
         if (!string.IsNullOrWhiteSpace(query)) assets = assets.Where(x => EF.Functions.ILike(x.FileName, $"%{query.Trim()}%"));
         if (!string.IsNullOrWhiteSpace(type) && Enum.TryParse<AssetType>(type, true, out var assetType)) assets = assets.Where(x => x.AssetType == assetType);
+        if (type == "media") assets = assets.Where(x => x.AssetType == AssetType.Image || x.AssetType == AssetType.Video || x.AssetType == AssetType.Audio);
         if (createdFrom.HasValue) assets = assets.Where(x => x.CreatedAt >= createdFrom);
         if (createdTo.HasValue) assets = assets.Where(x => x.CreatedAt <= createdTo);
         if (minSize.HasValue) assets = assets.Where(x => x.FileSize >= minSize);
@@ -172,7 +177,11 @@ public sealed class DamService(
         assets = sort.ToLowerInvariant() switch { "name" => assets.OrderBy(x => x.FileName), "size" => assets.OrderByDescending(x => x.FileSize), "created" => assets.OrderByDescending(x => x.CreatedAt), _ => assets.OrderByDescending(x => x.UpdatedAt) };
         var total = await assets.LongCountAsync(cancellationToken);
         var rows = await assets.Skip((page - 1) * pageSize).Take(pageSize).ToListAsync(cancellationToken);
-        var items = await Task.WhenAll(rows.Select(x => ToAssetDtoAsync(x, CanOperate(access, x.FolderId), cancellationToken)));
+        var paths = new Dictionary<Guid, string>();
+        foreach (var id in rows.Where(x => x.FolderId.HasValue).Select(x => x.FolderId!.Value).Distinct())
+            paths[id] = await GetFolderPathAsync(id, cancellationToken);
+        var items = await Task.WhenAll(rows.Select(async x => (await ToAssetDtoAsync(x, CanOperate(access, x.FolderId), cancellationToken))
+            with { FolderPath = x.FolderId.HasValue ? paths[x.FolderId.Value] : "/" }));
         return new AssetPageDto(items, page, pageSize, total);
     }
 
@@ -185,6 +194,38 @@ public sealed class DamService(
     }
 
     public async Task<AssetDto> UploadAsync(UploadCommand command, CancellationToken cancellationToken)
+    {
+        if (command.OperationId is null) return await UploadCoreAsync(command, cancellationToken);
+        if (command.OperationId.Length is < 1 or > 128 || string.IsNullOrEmpty(command.ContentHash))
+            throw new ArgumentException("上传操作标识无效。");
+        await directoryAccess.EnsureCanOperateAsync(command.Account, command.FolderId, cancellationToken);
+        var keyBytes = SHA256.HashData(Encoding.UTF8.GetBytes($"{command.Account.Id}:{command.OperationId}"));
+        var key = Convert.ToHexStringLower(keyBytes);
+        var fingerprint = Convert.ToHexStringLower(SHA256.HashData(Encoding.UTF8.GetBytes(JsonSerializer.Serialize(new
+            { command.FolderId, command.FileName, command.ContentType, command.Size, command.ContentHash }))));
+        await using var transaction = await db.Database.BeginTransactionAsync(cancellationToken);
+        if (db.Database.IsNpgsql())
+        {
+            var lockId = System.Buffers.Binary.BinaryPrimitives.ReadInt64LittleEndian(keyBytes);
+            await db.Database.ExecuteSqlInterpolatedAsync($"SELECT pg_advisory_xact_lock({lockId})", cancellationToken);
+        }
+        var receipt = await db.UploadReceipts.FindAsync([key], cancellationToken);
+        if (receipt is not null)
+        {
+            if (receipt.RequestHash != fingerprint) throw new InvalidOperationException("同一操作标识不能用于不同文件或目录。");
+            var asset = await RequireAssetAsync(receipt.AssetId, EntityStatus.Active, cancellationToken);
+            await directoryAccess.EnsureCanViewAsync(command.Account, asset.FolderId, cancellationToken);
+            return await ToAssetDtoAsync(asset, true, cancellationToken);
+        }
+        var result = await UploadCoreAsync(command, cancellationToken);
+        db.UploadReceipts.Add(new UploadReceipt { Id = key, RequestHash = fingerprint, AssetId = result.Id, CreatedAt = DateTimeOffset.UtcNow });
+        await db.SaveChangesAsync(cancellationToken);
+        await transaction.CommitAsync(cancellationToken);
+        if (result.ThumbnailStatus == "Pending") await thumbnailQueue.EnqueueAsync(result.Id, cancellationToken);
+        return result;
+    }
+
+    private async Task<AssetDto> UploadCoreAsync(UploadCommand command, CancellationToken cancellationToken)
     {
         await directoryAccess.EnsureCanOperateAsync(command.Account, command.FolderId, cancellationToken);
         await EnsureFolderExistsAsync(command.FolderId, cancellationToken);
@@ -202,10 +243,10 @@ public sealed class DamService(
         asset.Versions.Add(new AssetVersion { Id = Guid.NewGuid(), AssetId = asset.Id, StorageObjectId = storageObject.Id, StorageObject = storageObject, VersionNumber = 1, FileName = asset.FileName, MimeType = asset.MimeType, FileSize = asset.FileSize, Hash = asset.Hash, CreatedBy = command.Account.UserName, CreatedAt = now });
         db.Assets.Add(asset);
         var folderPath = await GetFolderPathAsync(asset.FolderId, cancellationToken);
-        OperationLogWriter.Add(db, command.Account, "Upload", "Asset", asset.Id, asset.FileName, asset.FolderId, folderPath, new { asset.FileName, FolderPath = folderPath, asset.FileSize, asset.Hash });
+        OperationLogWriter.Add(db, command.Account, "Upload", "Asset", asset.Id, asset.FileName, asset.FolderId, folderPath, new { asset.FileName, FolderPath = folderPath, asset.FileSize, asset.Hash, command.SourceContext });
         try { await db.SaveChangesAsync(cancellationToken); }
         catch { await storage.DeleteAsync(asset.Bucket, asset.ObjectKey, CancellationToken.None); throw; }
-        if (asset.ThumbnailStatus == ThumbnailStatus.Pending) await thumbnailQueue.EnqueueAsync(asset.Id, cancellationToken);
+        if (command.OperationId is null && asset.ThumbnailStatus == ThumbnailStatus.Pending) await thumbnailQueue.EnqueueAsync(asset.Id, cancellationToken);
         return await ToAssetDtoAsync(asset, true, cancellationToken);
     }
 
@@ -344,6 +385,20 @@ public sealed class DamService(
         return new AssetDownloadDescriptor(asset.FileName, asset.MimeType, asset.FileSize, asset.Bucket, asset.ObjectKey);
     }
 
+    public async Task<AssetDownloadDescriptor> PrepareContentAsync(Guid id, bool thumbnail, AccountContext account, CancellationToken cancellationToken)
+    {
+        var asset = await RequireAssetAsync(id, EntityStatus.Active, cancellationToken);
+        await directoryAccess.EnsureCanViewAsync(account, asset.FolderId, cancellationToken);
+        if (thumbnail)
+        {
+            if (asset.ThumbnailStatus != ThumbnailStatus.Ready || asset.ThumbnailBucket is null || asset.ThumbnailObjectKey is null)
+                throw new KeyNotFoundException("缩略图尚未就绪。");
+            var metadata = await storage.GetMetadataAsync(asset.ThumbnailBucket, asset.ThumbnailObjectKey, cancellationToken);
+            return new AssetDownloadDescriptor(asset.FileName + ".webp", "image/webp", metadata.Size, asset.ThumbnailBucket, asset.ThumbnailObjectKey);
+        }
+        return new AssetDownloadDescriptor(asset.FileName, asset.MimeType, asset.FileSize, asset.Bucket, asset.ObjectKey);
+    }
+
     public async Task<DownloadLinkDto> GetDownloadLinkAsync(Guid id, AccountContext account, CancellationToken cancellationToken)
     {
         var descriptor = await PrepareDownloadAsync(id, account, cancellationToken);
@@ -423,7 +478,7 @@ public sealed class DamService(
     {
         var previewUrl = await storage.GetPreviewUrlAsync(asset.Bucket, asset.ObjectKey, cancellationToken);
         var thumbnailUrl = asset.ThumbnailStatus == ThumbnailStatus.Ready && asset.ThumbnailBucket is not null && asset.ThumbnailObjectKey is not null ? await storage.GetPreviewUrlAsync(asset.ThumbnailBucket, asset.ThumbnailObjectKey, cancellationToken) : null;
-        return new AssetDto(asset.Id, asset.FolderId, asset.FileName, asset.OriginalFileName, asset.Extension, asset.MimeType, asset.FileSize, asset.AssetType.ToString(), asset.Hash, asset.Status.ToString(), asset.CreatedAt, asset.UpdatedAt, previewUrl, $"/api/assets/{asset.Id}/download", thumbnailUrl, asset.ThumbnailStatus.ToString(), canOperate);
+        return new AssetDto(asset.Id, asset.FolderId, asset.FileName, asset.OriginalFileName, asset.Extension, asset.MimeType, asset.FileSize, asset.AssetType.ToString(), asset.Hash, asset.Status.ToString(), asset.CreatedAt, asset.UpdatedAt, previewUrl, $"/api/assets/{asset.Id}/download", thumbnailUrl, asset.ThumbnailStatus.ToString(), canOperate, CurrentVersionNumber: asset.CurrentVersionNumber);
     }
 
     private static string NormalizeName(string name)

@@ -1,6 +1,6 @@
 namespace Mofang.Contracts;
 
-public sealed record ApiInfoResponse(string Name, string Version, string Status, DateTimeOffset ServerTime);
+public sealed record ApiInfoResponse(string Name, string Version, string Status, DateTimeOffset ServerTime, Guid LibraryId);
 
 public sealed record FolderDto(
     Guid Id,
@@ -36,7 +36,9 @@ public sealed record AssetDto(
     string DownloadUrl,
     string? ThumbnailUrl,
     string ThumbnailStatus,
-    bool CanOperate);
+    bool CanOperate,
+    string? FolderPath = null,
+    int CurrentVersionNumber = 1);
 
 public sealed record AssetDetailDto(
     AssetDto Asset,

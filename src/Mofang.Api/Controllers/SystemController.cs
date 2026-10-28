@@ -16,7 +16,8 @@ public sealed class SystemController(MofangDbContext db, IAssetStorage storage, 
 {
     [AllowAnonymous]
     [HttpGet("info")]
-    public ApiInfoResponse Info() => new("魔方数字资产管理", GetVersion(), "ok", DateTimeOffset.UtcNow);
+    public async Task<ApiInfoResponse> Info(CancellationToken cancellationToken) => new("魔方数字资产管理", GetVersion(), "ok", DateTimeOffset.UtcNow,
+        await db.LibraryIdentities.Select(x => x.LibraryId).SingleAsync(cancellationToken));
 
     [AllowAnonymous]
     [HttpGet("health")]

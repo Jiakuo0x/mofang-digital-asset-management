@@ -443,6 +443,28 @@ namespace Mofang.Infrastructure.Persistence.Migrations
                     b.ToTable("storage_objects", (string)null);
                 });
 
+            modelBuilder.Entity("Mofang.Domain.UploadReceipt", b =>
+                {
+                    b.Property<string>("Id")
+                        .HasMaxLength(64)
+                        .HasColumnType("character varying(64)");
+
+                    b.Property<Guid>("AssetId")
+                        .HasColumnType("uuid");
+
+                    b.Property<DateTimeOffset>("CreatedAt")
+                        .HasColumnType("timestamp with time zone");
+
+                    b.Property<string>("RequestHash")
+                        .IsRequired()
+                        .HasMaxLength(64)
+                        .HasColumnType("character varying(64)");
+
+                    b.HasKey("Id");
+
+                    b.ToTable("upload_receipts", (string)null);
+                });
+
             modelBuilder.Entity("Mofang.Infrastructure.Identity.ApplicationUser", b =>
                 {
                     b.Property<Guid>("Id")

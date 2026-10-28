@@ -12,6 +12,14 @@ public sealed class LibraryIdentity
     public Guid LibraryId { get; set; }
 }
 
+public sealed class UploadReceipt
+{
+    public required string Id { get; set; }
+    public required string RequestHash { get; set; }
+    public Guid AssetId { get; set; }
+    public DateTimeOffset CreatedAt { get; set; }
+}
+
 public enum AssetType
 {
     Image = 0,

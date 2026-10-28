@@ -25,6 +25,8 @@ public interface IAssetStorage
     Task<StorageWriteResult> UploadAsync(string bucket, string objectKey, Stream content, long size, string contentType, CancellationToken cancellationToken = default);
     Task<Stream> OpenReadAsync(string bucket, string objectKey, CancellationToken cancellationToken = default);
     Task DownloadToAsync(string bucket, string objectKey, Stream destination, CancellationToken cancellationToken = default);
+    Task DownloadRangeToAsync(string bucket, string objectKey, Stream destination, long offset, long length, CancellationToken cancellationToken = default)
+        => throw new NotSupportedException();
     Task DeleteAsync(string bucket, string objectKey, CancellationToken cancellationToken = default);
     Task CopyAsync(string sourceBucket, string sourceObjectKey, string destinationBucket, string destinationObjectKey, CancellationToken cancellationToken = default);
     Task<bool> ExistsAsync(string bucket, string objectKey, CancellationToken cancellationToken = default);
@@ -45,7 +47,8 @@ public interface IMinioAdministrationService
     Task<MinioSettingsDto> UpdateAsync(UpdateMinioSettingsRequest request, AccountContext actor, CancellationToken cancellationToken = default);
 }
 
-public sealed record UploadCommand(Guid? FolderId, string FileName, string ContentType, long Size, Stream Content, AccountContext Account);
+public sealed record UploadCommand(Guid? FolderId, string FileName, string ContentType, long Size, Stream Content, AccountContext Account,
+    string? OperationId = null, string? ContentHash = null, string? SourceContext = null);
 
 public interface IDamService
 {
@@ -56,7 +59,8 @@ public interface IDamService
     Task DeleteFolderAsync(Guid id, AccountContext account, CancellationToken cancellationToken);
     Task PermanentlyDeleteFolderAsync(Guid id, AccountContext account, CancellationToken cancellationToken);
     Task<FolderDto> RestoreFolderAsync(Guid id, RestoreRequest request, AccountContext account, CancellationToken cancellationToken);
-    Task<AssetPageDto> SearchAssetsAsync(Guid? folderId, string? query, string? type, bool trash, DateTimeOffset? createdFrom, DateTimeOffset? createdTo, long? minSize, long? maxSize, string sort, int page, int pageSize, AccountContext account, CancellationToken cancellationToken);
+    Task<AssetPageDto> SearchAssetsAsync(Guid? folderId, string? query, string? type, bool trash, DateTimeOffset? createdFrom, DateTimeOffset? createdTo, long? minSize, long? maxSize, string sort, int page, int pageSize, AccountContext account, CancellationToken cancellationToken, string scope = "folder");
+    Task<AssetDownloadDescriptor> PrepareContentAsync(Guid id, bool thumbnail, AccountContext account, CancellationToken cancellationToken);
     Task<AssetDetailDto> GetAssetAsync(Guid id, AccountContext account, CancellationToken cancellationToken);
     Task<AssetDto> UploadAsync(UploadCommand command, CancellationToken cancellationToken);
     Task<AssetDto> RenameAssetAsync(Guid id, RenameRequest request, AccountContext account, CancellationToken cancellationToken);

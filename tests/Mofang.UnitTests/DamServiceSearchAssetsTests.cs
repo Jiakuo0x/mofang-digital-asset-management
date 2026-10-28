@@ -55,6 +55,29 @@ public sealed class DamServiceSearchAssetsTests
         Assert.Equal(folderAsset.Id, Assert.Single((await test.SearchAsync(folder.Id, account: account)).Items).Id);
     }
 
+    [Fact]
+    public async Task GlobalSearchAggregatesOnlyAuthorizedActiveDirectories()
+    {
+        await using var test = await TestContext.CreateAsync();
+        var visible = NewFolder("授权目录");
+        var nested = NewFolder("子目录", visible.Id);
+        var hidden = NewFolder("私有目录");
+        var reader = new ApplicationUser { Id = Guid.NewGuid(), UserName = "reader", NormalizedUserName = "READER", DisplayName = "读者", CreatedAt = DateTimeOffset.UtcNow, UpdatedAt = DateTimeOffset.UtcNow };
+        test.Db.AddRange(visible, nested, hidden, reader,
+            NewAsset(null, "根目录.txt"), NewAsset(visible.Id, "同名.txt"),
+            NewAsset(nested.Id, "同名.txt"), NewAsset(hidden.Id, "同名.txt"),
+            NewAsset(nested.Id, "已删.txt", EntityStatus.Deleted));
+        test.Db.DirectoryPermissions.Add(new DirectoryPermission { Id = Guid.NewGuid(), AccountId = reader.Id, FolderId = visible.Id, CanView = true, CreatedAt = DateTimeOffset.UtcNow, UpdatedAt = DateTimeOffset.UtcNow });
+        await test.Db.SaveChangesAsync();
+        var account = new AccountContext(reader.Id, "reader", "读者", false);
+        var result = await test.SearchAsync(null, account: account, scope: "all");
+        Assert.Equal(2, result.Total);
+        Assert.All(result.Items, item => Assert.False(item.CanOperate));
+        Assert.Contains(result.Items, item => item.FolderPath == "/授权目录");
+        Assert.Contains(result.Items, item => item.FolderPath == "/授权目录/子目录");
+        Assert.Empty((await test.SearchAsync(null, account: account)).Items);
+    }
+
     private static Folder NewFolder(string name, Guid? parentId = null) => new()
     {
         Id = Guid.NewGuid(), ParentId = parentId, Name = name, CreatedBy = "admin", CreatedAt = DateTimeOffset.UtcNow, UpdatedAt = DateTimeOffset.UtcNow
@@ -82,8 +105,8 @@ public sealed class DamServiceSearchAssetsTests
             return new TestContext(connection, db);
         }
 
-        public Task<Mofang.Contracts.AssetPageDto> SearchAsync(Guid? folderId, bool trash = false, AccountContext? account = null) =>
-            _service.SearchAssetsAsync(folderId, null, null, trash, null, null, null, null, "name", 1, 100, account ?? _admin, CancellationToken.None);
+        public Task<Mofang.Contracts.AssetPageDto> SearchAsync(Guid? folderId, bool trash = false, AccountContext? account = null, string scope = "folder") =>
+            _service.SearchAssetsAsync(folderId, null, null, trash, null, null, null, null, "name", 1, 100, account ?? _admin, CancellationToken.None, scope);
 
         public async ValueTask DisposeAsync()
         {

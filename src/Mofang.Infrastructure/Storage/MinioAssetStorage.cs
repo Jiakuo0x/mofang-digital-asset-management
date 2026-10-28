@@ -60,6 +60,45 @@ public sealed class MinioAssetStorage(IMinioConfigurationProvider configurationP
             .WithCallbackStream((source, token) => source.CopyToAsync(destination, token)), cancellationToken);
     }
 
+    public async Task DownloadRangeToAsync(string bucket, string objectKey, Stream destination, long offset, long length, CancellationToken cancellationToken = default)
+    {
+        var clients = await GetClientsAsync(cancellationToken);
+        // The SDK's GetObject range path also sends Range on its preliminary HEAD
+        // and rejects MinIO's valid 206. Use an internally signed, bounded GET.
+        var url = await clients.Internal.PresignedGetObjectAsync(new PresignedGetObjectArgs()
+            .WithBucket(bucket).WithObject(objectKey).WithExpiry(60));
+        using var request = new HttpRequestMessage(HttpMethod.Get, url);
+        request.Headers.Range = new System.Net.Http.Headers.RangeHeaderValue(offset, checked(offset + length - 1));
+        try
+        {
+            using var response = await RangeHttp.SendAsync(request, HttpCompletionOption.ResponseHeadersRead, cancellationToken);
+            if (response.StatusCode != System.Net.HttpStatusCode.PartialContent
+                || response.Content.Headers.ContentRange?.From != offset
+                || response.Content.Headers.ContentRange?.To != offset + length - 1)
+                throw new IOException("Object storage did not return the requested media range.");
+            await using var source = await response.Content.ReadAsStreamAsync(cancellationToken);
+            var buffer = System.Buffers.ArrayPool<byte>.Shared.Rent(64 * 1024);
+            long copied = 0;
+            try
+            {
+                int count;
+                while ((count = await source.ReadAsync(buffer.AsMemory(), cancellationToken)) > 0)
+                {
+                    if (copied + count > length) throw new InvalidDataException("Object storage returned more bytes than requested.");
+                    await destination.WriteAsync(buffer.AsMemory(0, count), cancellationToken);
+                    copied += count;
+                }
+                if (copied != length) throw new EndOfStreamException("Incomplete media range.");
+            }
+            finally { System.Buffers.ArrayPool<byte>.Shared.Return(buffer); }
+        }
+        // Do not include the internal signed URL in exception logs.
+        catch (HttpRequestException) { throw new IOException("Object storage media range request failed."); }
+    }
+
+    private static readonly HttpClient RangeHttp = new(new SocketsHttpHandler { AllowAutoRedirect = false, UseProxy = false })
+        { Timeout = TimeSpan.FromMinutes(10) };
+
     public async Task DeleteAsync(string bucket, string objectKey, CancellationToken cancellationToken = default)
     {
         var clients = await GetClientsAsync(cancellationToken);

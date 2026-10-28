@@ -154,6 +154,13 @@ python tests/generate-smoke-assets.py
 - `DELETE /api/assets/{id}`、`DELETE /api/assets/{id}/permanent`
 - `GET /api/operations?folderId=&directory=&fileName=&accountId=`、`GET /api/storage/summary`
 
+### 上镜集成兼容接口
+
+- `GET /api/info` 返回持久化的 `libraryId`，变更 API 地址不会改变资产库身份。
+- `GET /api/assets?scope=all` 搜索当前账号全部可见目录，结果包含 `folderPath` 与 `currentVersionNumber`；省略 `scope` 时保留原有当前目录行为。`type=media` 只返回图片、视频和音频。
+- `GET /api/assets/{id}/content?variant=original|thumbnail` 使用 Bearer 鉴权并校验目录权限，支持单段及后缀 Range、206 和 416。集成方可以转发媒体流，无需向用户公开 MinIO 地址。
+- `POST /api/assets/upload` 可传入 `Idempotency-Key`，此时每次仅提交一个文件。同账号同操作标识重试返回原资产；文件、名称或目标目录不同会被拒绝。省略该请求头时保留桌面端批量上传和既有重名规则。可选 `sourceContext` 写入操作日志，记录上镜项目来源。
+
 ## 数据与停机
 
 普通停机不会删除数据：

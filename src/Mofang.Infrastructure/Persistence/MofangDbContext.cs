@@ -11,6 +11,7 @@ public sealed class MofangDbContext(DbContextOptions<MofangDbContext> options) :
     public DbSet<Folder> Folders => Set<Folder>();
     public DbSet<LibraryIdentity> LibraryIdentities => Set<LibraryIdentity>();
     public DbSet<Asset> Assets => Set<Asset>();
+    public DbSet<UploadReceipt> UploadReceipts => Set<UploadReceipt>();
     public DbSet<AssetVersion> AssetVersions => Set<AssetVersion>();
     public DbSet<StorageObject> StorageObjects => Set<StorageObject>();
     public DbSet<MinioConfiguration> MinioConfigurations => Set<MinioConfiguration>();
@@ -20,6 +21,14 @@ public sealed class MofangDbContext(DbContextOptions<MofangDbContext> options) :
     protected override void OnModelCreating(ModelBuilder modelBuilder)
     {
         base.OnModelCreating(modelBuilder);
+
+        modelBuilder.Entity<UploadReceipt>(entity =>
+        {
+            entity.ToTable("upload_receipts");
+            entity.HasKey(x => x.Id);
+            entity.Property(x => x.Id).HasMaxLength(64);
+            entity.Property(x => x.RequestHash).HasMaxLength(64);
+        });
 
         modelBuilder.Entity<LibraryIdentity>(entity =>
         {
